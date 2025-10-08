@@ -370,11 +370,13 @@ contract FilecoinWarmStorageService is
         require(_filBeamControllerAddress != address(0), Errors.ZeroAddress(Errors.AddressField.FilBeamController));
         filBeamControllerAddress = _filBeamControllerAddress;
 
-        // Validate name and description
-        require(bytes(_name).length > 0, "Service name cannot be empty");
-        require(bytes(_name).length <= 256, "Service name exceeds 256 characters");
-        require(bytes(_description).length > 0, "Service description cannot be empty");
-        require(bytes(_description).length <= 256, "Service description exceeds 256 characters");
+        uint256 serviceNameLength = bytes(_name).length;
+        require(serviceNameLength > 0, Errors.InvalidServiceNameLength(serviceNameLength));
+        require(serviceNameLength <= 256, Errors.InvalidServiceNameLength(serviceNameLength));
+
+        uint256 serviceDescriptionLength = bytes(_description).length;
+        require(serviceDescriptionLength > 0, Errors.InvalidServiceDescriptionLength(serviceDescriptionLength));
+        require(serviceDescriptionLength <= 256, Errors.InvalidServiceDescriptionLength(serviceDescriptionLength));
 
         // Emit the FilecoinServiceDeployed event
         emit FilecoinServiceDeployed(_name, _description);
@@ -441,8 +443,8 @@ contract FilecoinWarmStorageService is
      * @param _viewContract Address of the view contract
      */
     function setViewContract(address _viewContract) external onlyOwner {
-        require(_viewContract != address(0), "Invalid view contract address");
-        require(viewContractAddress == address(0), "View contract already set");
+        require(_viewContract != address(0), Errors.ZeroAddress(Errors.AddressField.View));
+        require(viewContractAddress == address(0), Errors.AddressAlreadySet(Errors.AddressField.View));
         viewContractAddress = _viewContract;
         emit ViewContractSet(_viewContract);
     }
