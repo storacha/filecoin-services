@@ -672,9 +672,6 @@ contract FilecoinWarmStorageService is
             Errors.PaymentRailsNotFinalized(dataSetId, info.pdpEndEpoch)
         );
 
-        // Complete cleanup - remove the dataset from all mappings
-        delete dataSetInfo[dataSetId];
-
         // Remove from client's dataset list
         uint256[] storage clientDataSetList = clientDataSets[payer];
         for (uint256 i = 0; i < clientDataSetList.length; i++) {
@@ -686,10 +683,19 @@ contract FilecoinWarmStorageService is
             }
         }
 
+        // Remove the dataset from all mappings
+
         // Clean up proving-related state
         delete provingDeadlines[dataSetId];
         delete provenThisPeriod[dataSetId];
         delete provingActivationEpoch[dataSetId];
+
+        // Clean up rail mappings
+        delete railToDataSet[info.pdpRailId];
+        if (hasMetadataKey(dataSetMetadataKeys[dataSetId], METADATA_KEY_WITH_CDN)) {
+            delete railToDataSet[info.cacheMissRailId];
+            delete railToDataSet[info.cdnRailId];
+        }
 
         // Clean up metadata mappings
         string[] storage metadataKeys = dataSetMetadataKeys[dataSetId];
@@ -698,12 +704,8 @@ contract FilecoinWarmStorageService is
         }
         delete dataSetMetadataKeys[dataSetId];
 
-        // Clean up rail mappings
-        delete railToDataSet[info.pdpRailId];
-        if (hasMetadataKey(dataSetMetadataKeys[dataSetId], METADATA_KEY_WITH_CDN)) {
-            delete railToDataSet[info.cacheMissRailId];
-            delete railToDataSet[info.cdnRailId];
-        }
+        // Complete cleanup
+        delete dataSetInfo[dataSetId];
     }
 
     /**
