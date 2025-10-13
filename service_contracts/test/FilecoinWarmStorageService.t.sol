@@ -905,9 +905,15 @@ contract FilecoinWarmStorageServiceTest is Test {
         FilecoinWarmStorageService.ServicePricing memory pricing = pdpServiceWithPayments.getServicePrice();
 
         uint256 decimals = 6; // MockUSDFC uses 6 decimals in tests
-        uint256 expectedNoCDN = 5 * 10 ** decimals; // 5 USDFC with 6 decimals
-        uint256 expectedWithCDN = 55 * 10 ** (decimals - 1); // 5.5 USDFC with 6 decimals
-
+        //
+        // FORK: price change
+        //
+        uint256 expectedNoCDN = (9 * 10 ** decimals) / 10;
+        // 0.9 USDFC with 6 decimals
+        uint256 expectedWithCDN = 14 * 10 ** (decimals - 1); // 1.4 USDFC with 6 decimals
+        //
+        // FORK: end price change
+        //
         assertEq(pricing.pricePerTiBPerMonthNoCDN, expectedNoCDN, "No CDN price should be 5 * 10^decimals");
         assertEq(pricing.pricePerTiBPerMonthWithCDN, expectedWithCDN, "With CDN price should be 5.5 * 10^decimals");
         assertEq(address(pricing.tokenAddress), address(mockUSDFC), "Token address should match USDFC");
@@ -923,8 +929,14 @@ contract FilecoinWarmStorageServiceTest is Test {
         (uint256 serviceFee, uint256 spPayment) = pdpServiceWithPayments.getEffectiveRates();
 
         uint256 decimals = 6; // MockUSDFC uses 6 decimals in tests
-        // Total is 5 USDFC with 6 decimals
-        uint256 expectedTotal = 5 * 10 ** decimals;
+        //
+        // FORK: price change
+        //
+        // Total is 0.9 USDFC with 6 decimals
+        uint256 expectedTotal = (9 * 10 ** decimals) / 10;
+        //
+        // FORK: end price change
+        //
 
         // Test setup uses 0% commission
         uint256 expectedServiceFee = 0; // 0% commission
