@@ -1,0 +1,62 @@
+# This workflow is triggered when a GitHub release is created.
+# It builds the smart contracts, extracts their ABIs, and publishes them
+# as assets attached to the GitHub release.
+name: Publish ABIs
+
+on:
+  release:
+    types: [created]
+  workflow_dispatch:
+
+concurrency:
+  group: publish-abis-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+        with:
+          tversion: nightly
+          cache: true
+
+      - name: Install jq
+        run: sudo apt-get update && sudo apt-get install -y jq
+
+      - name: Install Dependencies
+        working-directory: service_contracts
+        run: forge install
+
+      - name: Build & extract ABIs
+        working-directory: service_contracts
+        run: |
+          make build
+          make update-abi
+
+      - name: Upload ABI assets
+        uses: softprops/action-gh-release@v2
+        if: ${{ github.event_name == 'release' }}
+        with:
+          files: service_contracts/abi/*.abi.json
+          fail_on_unmatched_files: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # For manual workflow runs, upload ABIs as artifacts for download
+      - name: Upload ABIs as workflow artifacts
+        uses: actions/upload-artifact@v4
+        if: ${{ github.event_name == 'workflow_dispatch' }}
+        with:
+          name: contract-abis
+          path: service_contracts/abi/*.abi.json
+          retention-days: 90
