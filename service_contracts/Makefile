@@ -159,9 +159,24 @@ $(foreach contract,$(ABI_CONTRACTS),$(eval $(call ABI_RULE,$(contract))))
 abi:
 	@mkdir -p abi
 
+# Special rule for merged error ABI
+abi/AllErrors.abi.json: | build abi
+	@echo "Extracting and merging errors from all contracts..."
+	@# Extract errors from main Errors.sol
+	@jq '[.abi[] | select(.type == "error")]' out/Errors.sol/Errors.json > abi/.errors1.json
+	@# Extract errors from Payments Errors.sol
+	@jq '[.abi[] | select(.type == "error")]' lib/fws-payments/out/Errors.sol/Errors.json > abi/.errors2.json
+	@# Extract errors from PDPVerifier
+	@jq '[.abi[] | select(.type == "error")]' lib/pdp/out/PDPVerifier.sol/PDPVerifier.json > abi/.errors3.json
+	@# Merge and deduplicate by signature (name + param types)
+	@jq -s 'add | unique_by(.name + "(" + ([.inputs[].type] | join(",")) + ")")' \
+		abi/.errors1.json abi/.errors2.json abi/.errors3.json > $@
+	@rm -f abi/.errors1.json abi/.errors2.json abi/.errors3.json
+	@echo "Merged $$(jq 'length' $@) unique errors into AllErrors.abi.json"
+
 # Update ABIs
 .PHONY: update-abi
-update-abi: $(ABI_FILES)
+update-abi: $(ABI_FILES) abi/AllErrors.abi.json
 
 # Clean just the ABIs
 .PHONY: clean-abi
