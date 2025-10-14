@@ -1,0 +1,31 @@
+# Service Operator Configuration
+
+# RPC endpoint
+rpc_url: "https://api.calibration.node.glif.io/rpc/v1"
+
+# Contract addresses from deployment
+service_contract_address: "0x0000000000000000000000000000000000000000"  # FilecoinWarmStorageService Contract (Proxy)
+verifier_contract_address: "0x0000000000000000000000000000000000000000" # PDPVerifier contract (proxy)
+service_registry_contract_address: "0x0000000000000000000000000000000000000000" # ServiceProviderRegistry (proxy)
+payments_contract_address: "0x0000000000000000000000000000000000000000"  # Payments Contract
+
+token_contract_address: "0xb3042734b608a1B16e9e86B374A3f3e389B4cDf0"     # USDFC Token (constant)
+
+# Signers configuration
+# Define signers for different roles
+signers:
+  # Owner signer - used for contract administration (provider approval, etc)
+  owner:
+    # Option 1: Use encrypted keystore (recommended)
+    keystore: "../keystore/storacha-contract-owner"
+    keystore_password: "<password>"
+    # Option 2: Use private key file
+    # private_key: "./path/to/owner-private-key.hex"
+
+  # Payer signer - used for payment operations (deposits, withdrawals, approvals)
+  payer:
+    # Option 1: Use encrypted keystore (recommended)
+    keystore: "../keystore/storacha-usdfc"
+    keystore_password: "<password>"
+    # Option 2: Use private key file
+    # private_key: "./path/to/payer-private-key.hex"

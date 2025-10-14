@@ -1,0 +1,4 @@
+keystore/*
+*.hex
+*.yaml
+service-operator
