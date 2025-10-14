@@ -1,2 +1,4 @@
 # VIM
 *.swp
+*.idea/
+*keystore/

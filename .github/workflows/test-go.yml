@@ -1,0 +1,88 @@
+name: Test Go
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+
+jobs:
+  test-go:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: v1.3.5
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24.6'
+
+      - name: Install Go tools
+        run: |
+          echo "Installing abigen for contract binding generation..."
+          go install github.com/ethereum/go-ethereum/cmd/abigen@latest
+
+      - name: Install Dependencies
+        run: |
+          make install
+
+      - name: Build Solidity Contracts and Generate ABIs
+        run: |
+          export PATH="/home/runner/.config/.foundry/bin:$PATH"
+          make contracts
+
+      - name: Generate Go Bindings
+        run: |
+          echo "Generating Go contract and error bindings..."
+          make bindings
+
+      - name: Test ABI Compatibility
+        run: |
+          echo "Testing contract ABI compatibility..."
+          cd go && make test-abi
+
+      - name: Test Go Libraries
+        run: |
+          echo "Testing Go libraries..."
+          make test-go
+
+      - name: Full Integration Test
+        run: |
+          echo "Running full build from top-level Makefile..."
+          export PATH="/home/runner/.config/.foundry/bin:$PATH"
+          make clean
+          make all
+
+      - name: Run All Tests
+        run: |
+          echo "Running all tests (Solidity + Go)..."
+          export PATH="/home/runner/.config/.foundry/bin:$PATH"
+          make test
+
+      - name: Verify Build Artifacts
+        run: |
+          echo "Verifying all build artifacts exist..."
+
+          # Go bindings
+          test -f go/bindings/common_types.go
+          test -f go/bindings/filecoin_warm_storage_service.go
+          test -f go/bindings/filecoin_warm_storage_service_state_view.go
+          test -f go/bindings/payments.go
+          test -f go/bindings/pdp_proving_schedule.go
+          test -f go/bindings/pdp_verifier.go
+          test -f go/bindings/service_provider_registry.go
+          test -f go/bindings/session_key_registry.go
+
+          # Error bindings
+          test -f go/evmerrors/errors.go
+          test -f go/evmerrors/decoders.go
+          test -f go/evmerrors/helpers.go
+
+          echo "✅ All build artifacts verified!"
