@@ -11,6 +11,7 @@ import {SessionKeyRegistry} from "@session-key-registry/SessionKeyRegistry.sol";
 
 import {CHALLENGES_PER_PROOF, FilecoinWarmStorageService} from "../src/FilecoinWarmStorageService.sol";
 import {FilecoinWarmStorageServiceStateView} from "../src/FilecoinWarmStorageServiceStateView.sol";
+import {SignatureVerificationLib} from "../src/lib/SignatureVerificationLib.sol";
 import {FilecoinWarmStorageServiceStateLibrary} from "../src/lib/FilecoinWarmStorageServiceStateLibrary.sol";
 import {Payments} from "@fws-payments/Payments.sol";
 import {MockERC20, MockPDPVerifier} from "./mocks/SharedMocks.sol";
@@ -3899,7 +3900,7 @@ contract SignatureCheckingService is FilecoinWarmStorageService {
     {}
 
     function doRecoverSigner(bytes32 messageHash, bytes memory signature) public pure returns (address) {
-        return recoverSigner(messageHash, signature);
+        return SignatureVerificationLib.recoverSigner(messageHash, signature);
     }
 }
 
