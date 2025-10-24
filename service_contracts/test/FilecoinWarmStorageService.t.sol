@@ -911,16 +911,23 @@ contract FilecoinWarmStorageServiceTest is MockFVMTest {
 
         uint256 decimals = 6; // MockUSDFC uses 6 decimals in tests
         uint256 expectedNoCDN = 25 * 10 ** (decimals - 1); // 2.5 USDFC with 6 decimals
-        uint256 expectedWithCDN = 3 * 10 ** decimals; // 3 USDFC with 6 decimals (2.5 + 0.5 CDN)
+        uint256 expectedCDNEgress = 7 * 10 ** decimals; // 7 USDFC per TiB of CDN egress
+        uint256 expectedCacheMissEgress = 7 * 10 ** decimals; // 7 USDFC per TiB of cache miss egress
 
         assertEq(pricing.pricePerTiBPerMonthNoCDN, expectedNoCDN, "No CDN price should be 2.5 * 10^decimals");
-        assertEq(pricing.pricePerTiBPerMonthWithCDN, expectedWithCDN, "With CDN price should be 3 * 10^decimals");
+        assertEq(pricing.pricePerTiBCdnEgress, expectedCDNEgress, "CDN egress price should be 7 * 10^decimals per TiB");
+        assertEq(
+            pricing.pricePerTiBCacheMissEgress,
+            expectedCacheMissEgress,
+            "Cache miss egress price should be 7 * 10^decimals per TiB"
+        );
         assertEq(address(pricing.tokenAddress), address(mockUSDFC), "Token address should match USDFC");
         assertEq(pricing.epochsPerMonth, 86400, "Epochs per month should be 86400");
 
         // Verify the values are in expected range
         assert(pricing.pricePerTiBPerMonthNoCDN < 10 ** 8); // Less than 10^8
-        assert(pricing.pricePerTiBPerMonthWithCDN < 10 ** 8); // Less than 10^8
+        assert(pricing.pricePerTiBCdnEgress < 10 ** 8); // Less than 10^8
+        assert(pricing.pricePerTiBCacheMissEgress < 10 ** 8); // Less than 10^8
     }
 
     function testGetEffectiveRatesValues() public view {
