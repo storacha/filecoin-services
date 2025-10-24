@@ -557,13 +557,13 @@ contract FilecoinWarmStorageServiceTest is MockFVMTest {
             mockUSDFC,
             address(pdpServiceWithPayments),
             true, // approved
-            1000e6, // rate allowance (1000 USDFC)
-            1000e6, // lockup allowance (1000 USDFC)
+            1000e18, // rate allowance (1000 USDFC)
+            1000e18, // lockup allowance (1000 USDFC)
             365 days // max lockup period
         );
 
         // Client deposits funds to the FilecoinPayV1 contract for future payments
-        uint256 depositAmount = 10e6; // Sufficient funds for initial lockup and future operations
+        uint256 depositAmount = 10e18; // Sufficient funds for initial lockup and future operations
         mockUSDFC.approve(address(payments), depositAmount);
         payments.deposit(mockUSDFC, client, depositAmount);
         vm.stopPrank();
@@ -682,13 +682,13 @@ contract FilecoinWarmStorageServiceTest is MockFVMTest {
             mockUSDFC,
             address(pdpServiceWithPayments),
             true, // approved
-            1000e6, // rate allowance (1000 USDFC)
-            1000e6, // lockup allowance (1000 USDFC)
+            1000e18, // rate allowance (1000 USDFC)
+            1000e18, // lockup allowance (1000 USDFC)
             365 days // max lockup period
         );
 
         // Client deposits funds to the FilecoinPayV1 contract for future payments
-        uint256 depositAmount = 10e6; // Sufficient funds for initial lockup and future operations
+        uint256 depositAmount = 10e18; // Sufficient funds for initial lockup and future operations
         mockUSDFC.approve(address(payments), depositAmount);
         payments.deposit(mockUSDFC, client, depositAmount);
         vm.stopPrank();
@@ -795,11 +795,11 @@ contract FilecoinWarmStorageServiceTest is MockFVMTest {
             mockUSDFC,
             address(pdpServiceWithPayments),
             true, // approved
-            1000e6, // rate allowance (1000 USDFC)
-            1000e6, // lockup allowance (1000 USDFC)
+            1000e18, // rate allowance (1000 USDFC)
+            1000e18, // lockup allowance (1000 USDFC)
             365 days // max lockup period
         );
-        uint256 depositAmount = 10e6; // Sufficient funds for initial lockup and future operations
+        uint256 depositAmount = 10e18; // Sufficient funds for initial lockup and future operations
         mockUSDFC.approve(address(payments), depositAmount);
         payments.deposit(mockUSDFC, client, depositAmount);
         vm.stopPrank();
@@ -909,10 +909,11 @@ contract FilecoinWarmStorageServiceTest is MockFVMTest {
         // Test the values returned by getServicePrice
         FilecoinWarmStorageService.ServicePricing memory pricing = pdpServiceWithPayments.getServicePrice();
 
-        uint256 decimals = 6; // MockUSDFC uses 6 decimals in tests
-        uint256 expectedNoCDN = 25 * 10 ** (decimals - 1); // 2.5 USDFC with 6 decimals
+        uint256 decimals = 18; // MockUSDFC uses 18 decimals in tests
+        uint256 expectedNoCDN = 25 * 10 ** (decimals - 1); // 2.5 USDFC with 18 decimals
         uint256 expectedCDNEgress = 7 * 10 ** decimals; // 7 USDFC per TiB of CDN egress
         uint256 expectedCacheMissEgress = 7 * 10 ** decimals; // 7 USDFC per TiB of cache miss egress
+        uint256 expectedMinimum = (6 * 10 ** decimals) / 100; // 0.06 USDFC minimum
 
         assertEq(pricing.pricePerTiBPerMonthNoCDN, expectedNoCDN, "No CDN price should be 2.5 * 10^decimals");
         assertEq(pricing.pricePerTiBCdnEgress, expectedCDNEgress, "CDN egress price should be 7 * 10^decimals per TiB");
@@ -923,19 +924,20 @@ contract FilecoinWarmStorageServiceTest is MockFVMTest {
         );
         assertEq(address(pricing.tokenAddress), address(mockUSDFC), "Token address should match USDFC");
         assertEq(pricing.epochsPerMonth, 86400, "Epochs per month should be 86400");
+        assertEq(pricing.minimumPricePerMonth, expectedMinimum, "Minimum price should be 0.06 * 10^decimals");
 
         // Verify the values are in expected range
-        assert(pricing.pricePerTiBPerMonthNoCDN < 10 ** 8); // Less than 10^8
-        assert(pricing.pricePerTiBCdnEgress < 10 ** 8); // Less than 10^8
-        assert(pricing.pricePerTiBCacheMissEgress < 10 ** 8); // Less than 10^8
+        assert(pricing.pricePerTiBPerMonthNoCDN < 10 ** 20); // Less than 10^20
+        assert(pricing.pricePerTiBCdnEgress < 10 ** 20); // Less than 10^20
+        assert(pricing.pricePerTiBCacheMissEgress < 10 ** 20); // Less than 10^20
     }
 
     function testGetEffectiveRatesValues() public view {
         // Test the values returned by getEffectiveRates
         (uint256 serviceFee, uint256 spPayment) = pdpServiceWithPayments.getEffectiveRates();
 
-        uint256 decimals = 6; // MockUSDFC uses 6 decimals in tests
-        // Total is 2.5 USDFC with 6 decimals
+        uint256 decimals = 18; // MockUSDFC uses 18 decimals in tests
+        // Total is 2.5 USDFC with 18 decimals
         uint256 expectedTotal = 25 * 10 ** (decimals - 1);
 
         // Test setup uses 0% commission
@@ -943,11 +945,512 @@ contract FilecoinWarmStorageServiceTest is MockFVMTest {
         uint256 expectedSpPayment = expectedTotal; // 100% goes to SP
 
         assertEq(serviceFee, expectedServiceFee, "Service fee should be 0 with 0% commission");
-        assertEq(spPayment, expectedSpPayment, "SP payment should be 2.5 * 10^6");
-        assertEq(serviceFee + spPayment, expectedTotal, "Total should equal 2.5 * 10^6");
+        assertEq(spPayment, expectedSpPayment, "SP payment should be 2.5 * 10^18");
+        assertEq(serviceFee + spPayment, expectedTotal, "Total should equal 2.5 * 10^18");
 
         // Verify the values are in expected range
-        assert(serviceFee + spPayment < 10 ** 8); // Less than 10^8
+        assert(serviceFee + spPayment < 10 ** 20); // Less than 10^20
+    }
+
+    // Minimum Pricing Tests
+    function testMinimumPricing_SmallDataSetsPayFloorRate() public view {
+        // Small datasets should all pay the minimum floor rate of 0.06 USDFC/month
+        uint256 decimals = 18;
+        uint256 oneGiB = 1024 * 1024 * 1024;
+
+        // Expected minimum: 0.06 USDFC/month = 6/100 with 18 decimals
+        uint256 expectedMinPerMonth = (6 * 10 ** decimals) / 100;
+        uint256 expectedMinPerEpoch = expectedMinPerMonth / 86400; // Convert to per-epoch
+
+        // Test 0 bytes
+        uint256 rateZero = pdpServiceWithPayments.calculateRatePerEpoch(0);
+        assertEq(rateZero, expectedMinPerEpoch, "0 bytes should return 0.06 USDFC/month minimum");
+
+        // Test 1 GiB
+        uint256 rateOneGiB = pdpServiceWithPayments.calculateRatePerEpoch(oneGiB);
+        assertEq(rateOneGiB, expectedMinPerEpoch, "1 GiB should return minimum rate");
+
+        // Test 10 GiB
+        uint256 rateTenGiB = pdpServiceWithPayments.calculateRatePerEpoch(10 * oneGiB);
+        assertEq(rateTenGiB, expectedMinPerEpoch, "10 GiB should return minimum rate");
+
+        // Test 24 GiB (below crossover)
+        uint256 rateTwentyFourGiB = pdpServiceWithPayments.calculateRatePerEpoch(24 * oneGiB);
+        assertEq(rateTwentyFourGiB, expectedMinPerEpoch, "24 GiB should return minimum rate");
+    }
+
+    function testMinimumPricing_CrossoverPoint() public view {
+        // Test the crossover where natural pricing exceeds minimum
+        // At 2.5 USDFC/TiB: 0.06/2.5*1024 = 24.576 GiB is the crossover
+        uint256 oneGiB = 1024 * 1024 * 1024;
+        uint256 decimals = 18;
+        uint256 expectedMinPerMonth = (6 * 10 ** decimals) / 100;
+        uint256 expectedMinPerEpoch = expectedMinPerMonth / 86400;
+
+        // 24 GiB: natural rate (0.0586) < minimum (0.06), so returns minimum
+        uint256 rate24GiB = pdpServiceWithPayments.calculateRatePerEpoch(24 * oneGiB);
+        assertEq(rate24GiB, expectedMinPerEpoch, "24 GiB should use minimum floor");
+
+        // 25 GiB: natural rate (0.0610) > minimum (0.06), so returns natural rate
+        uint256 rate25GiB = pdpServiceWithPayments.calculateRatePerEpoch(25 * oneGiB);
+        assert(rate25GiB > expectedMinPerEpoch);
+
+        // Verify it's actually proportional (not minimum)
+        uint256 expectedNatural25 = rate25GiB * 86400; // Convert to monthly
+        uint256 expected25Monthly = (25 * 10 ** decimals * 25) / (1024 * 10); // 25 GiB at 2.5 USDFC/TiB
+        // Tolerance: actual loss is ~16,000 from integer division, allow 100,000 for safety
+        assertApproxEqAbs(expectedNatural25, expected25Monthly, 100000, "25 GiB should use natural rate");
+    }
+
+    function testMinimumPricing_LargeDataSetsUseProportionalPricing() public view {
+        // Large datasets should use proportional pricing (natural rate > minimum)
+        uint256 oneGiB = 1024 * 1024 * 1024;
+        uint256 decimals = 18;
+        uint256 expectedMinPerMonth = (6 * 10 ** decimals) / 100;
+        uint256 expectedMinPerEpoch = expectedMinPerMonth / 86400;
+
+        // Test 48 GiB
+        uint256 rate48GiB = pdpServiceWithPayments.calculateRatePerEpoch(48 * oneGiB);
+        assert(rate48GiB > expectedMinPerEpoch);
+
+        // Test 100 GiB
+        uint256 rate100GiB = pdpServiceWithPayments.calculateRatePerEpoch(100 * oneGiB);
+        assert(rate100GiB > rate48GiB);
+
+        // Test 1 TiB
+        uint256 oneTiB = oneGiB * 1024;
+        uint256 rateOneTiB = pdpServiceWithPayments.calculateRatePerEpoch(oneTiB);
+        assert(rateOneTiB > rate100GiB);
+
+        // Verify proportional scaling
+        assertApproxEqRel(rate100GiB, rate48GiB * 100 / 48, 0.01e18, "Rates should scale proportionally");
+    }
+
+    function testMinimumPricing_ExactlyPoint06USDFC() public view {
+        // Verify that minimum pricing is exactly 0.06 USDFC/month for small datasets
+        uint256 decimals = 18; // MockUSDFC uses 18 decimals in tests
+        uint256 oneGiB = 1024 * 1024 * 1024;
+
+        // Get rate per epoch for dataset below crossover point
+        uint256 ratePerEpoch = pdpServiceWithPayments.calculateRatePerEpoch(oneGiB);
+
+        // Convert to rate per month (86400 epochs per month)
+        uint256 ratePerMonth = ratePerEpoch * 86400;
+
+        // Expected: exactly 0.06 USDFC with 18 decimals = 60000000000000000
+        // Allow tiny tolerance for integer division rounding (0.06 / 86400 rounds down)
+        uint256 expected = (6 * 10 ** decimals) / 100;
+        uint256 tolerance = 1; // Allow 1 per epoch difference = 86400 total
+
+        assertApproxEqAbs(ratePerMonth, expected, tolerance * 86400, "Minimum rate should be 0.06 USDFC/month");
+    }
+
+    // Minimum Funds Validation Tests
+    function testInsufficientFunds_BelowMinimum() public {
+        // Setup: Client with insufficient funds (below 0.06 USDFC minimum)
+        address insufficientClient = makeAddr("insufficientClient");
+        uint256 insufficientAmount = 5e16; // 0.05 USDFC (below 0.06 minimum)
+
+        // Transfer tokens from test contract to the test client
+        mockUSDFC.safeTransfer(insufficientClient, insufficientAmount);
+
+        vm.startPrank(insufficientClient);
+        payments.setOperatorApproval(mockUSDFC, address(pdpServiceWithPayments), true, 1000e18, 1000e18, 365 days);
+        mockUSDFC.approve(address(payments), insufficientAmount);
+        payments.deposit(mockUSDFC, insufficientClient, insufficientAmount);
+        vm.stopPrank();
+
+        // Prepare dataset creation data
+        (string[] memory dsKeys, string[] memory dsValues) = _getSingleMetadataKV("label", "Insufficient Test");
+        FilecoinWarmStorageService.DataSetCreateData memory createData = FilecoinWarmStorageService.DataSetCreateData({
+            payer: insufficientClient,
+            clientDataSetId: 999,
+            metadataKeys: dsKeys,
+            metadataValues: dsValues,
+            signature: FAKE_SIGNATURE
+        });
+
+        bytes memory encodedCreateData = abi.encode(
+            createData.payer,
+            createData.clientDataSetId,
+            createData.metadataKeys,
+            createData.metadataValues,
+            createData.signature
+        );
+
+        // Expected minimum: (0.06 USDFC * 86400) / 86400 = 0.06 USDFC = 6e16
+        uint256 minimumRequired = 6e16;
+
+        // Expect revert with InsufficientFundsForMinimumRate error
+        makeSignaturePass(insufficientClient);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                Errors.InsufficientFundsForMinimumRate.selector, insufficientClient, minimumRequired, insufficientAmount
+            )
+        );
+        vm.prank(serviceProvider);
+        mockPDPVerifier.createDataSet(pdpServiceWithPayments, encodedCreateData);
+    }
+
+    function testInsufficientFunds_ExactMinimum() public {
+        // Setup: Client with exactly the minimum funds (0.06 USDFC)
+        address exactClient = makeAddr("exactClient");
+        uint256 exactAmount = 6e16; // Exactly 0.06 USDFC
+
+        // Transfer tokens from test contract to the test client
+        mockUSDFC.safeTransfer(exactClient, exactAmount);
+
+        vm.startPrank(exactClient);
+        payments.setOperatorApproval(mockUSDFC, address(pdpServiceWithPayments), true, 1000e18, 1000e18, 365 days);
+        mockUSDFC.approve(address(payments), exactAmount);
+        payments.deposit(mockUSDFC, exactClient, exactAmount);
+        vm.stopPrank();
+
+        // Prepare dataset creation data
+        (string[] memory dsKeys, string[] memory dsValues) = _getSingleMetadataKV("label", "Exact Minimum Test");
+        FilecoinWarmStorageService.DataSetCreateData memory createData = FilecoinWarmStorageService.DataSetCreateData({
+            payer: exactClient,
+            clientDataSetId: 1000,
+            metadataKeys: dsKeys,
+            metadataValues: dsValues,
+            signature: FAKE_SIGNATURE
+        });
+
+        bytes memory encodedCreateData = abi.encode(
+            createData.payer,
+            createData.clientDataSetId,
+            createData.metadataKeys,
+            createData.metadataValues,
+            createData.signature
+        );
+
+        // Should succeed with exact minimum
+        makeSignaturePass(exactClient);
+        vm.prank(serviceProvider);
+        uint256 dataSetId = mockPDPVerifier.createDataSet(pdpServiceWithPayments, encodedCreateData);
+
+        // Verify dataset was created
+        assertEq(dataSetId, 1, "Dataset should be created with exact minimum funds");
+    }
+
+    function testInsufficientFunds_JustAboveMinimum() public {
+        // Setup: Client with slightly more than minimum (0.07 USDFC)
+        address aboveMinClient = makeAddr("aboveMinClient");
+        uint256 aboveMinAmount = 7e16; // 0.07 USDFC (just above 0.06 minimum)
+
+        // Transfer tokens from test contract to the test client
+        mockUSDFC.safeTransfer(aboveMinClient, aboveMinAmount);
+
+        vm.startPrank(aboveMinClient);
+        payments.setOperatorApproval(mockUSDFC, address(pdpServiceWithPayments), true, 1000e18, 1000e18, 365 days);
+        mockUSDFC.approve(address(payments), aboveMinAmount);
+        payments.deposit(mockUSDFC, aboveMinClient, aboveMinAmount);
+        vm.stopPrank();
+
+        // Prepare dataset creation data
+        (string[] memory dsKeys, string[] memory dsValues) = _getSingleMetadataKV("label", "Above Minimum Test");
+        FilecoinWarmStorageService.DataSetCreateData memory createData = FilecoinWarmStorageService.DataSetCreateData({
+            payer: aboveMinClient,
+            clientDataSetId: 1001,
+            metadataKeys: dsKeys,
+            metadataValues: dsValues,
+            signature: FAKE_SIGNATURE
+        });
+
+        bytes memory encodedCreateData = abi.encode(
+            createData.payer,
+            createData.clientDataSetId,
+            createData.metadataKeys,
+            createData.metadataValues,
+            createData.signature
+        );
+
+        // Should succeed with funds above minimum
+        makeSignaturePass(aboveMinClient);
+        vm.prank(serviceProvider);
+        uint256 dataSetId = mockPDPVerifier.createDataSet(pdpServiceWithPayments, encodedCreateData);
+
+        // Verify dataset was created
+        assertEq(dataSetId, 1, "Dataset should be created with above-minimum funds");
+    }
+
+    // Operator Approval Validation Tests
+    function testOperatorApproval_NotApproved() public {
+        // Setup: Client with sufficient funds but no operator approval
+        address testClient = makeAddr("testClient");
+        uint256 depositAmount = 10e18; // 10 USDFC (plenty of funds)
+
+        // Transfer tokens and deposit
+        mockUSDFC.safeTransfer(testClient, depositAmount);
+
+        vm.startPrank(testClient);
+        // Don't set operator approval (or explicitly set to false)
+        payments.setOperatorApproval(mockUSDFC, address(pdpServiceWithPayments), false, 0, 0, 0);
+        mockUSDFC.approve(address(payments), depositAmount);
+        payments.deposit(mockUSDFC, testClient, depositAmount);
+        vm.stopPrank();
+
+        // Prepare dataset creation data
+        (string[] memory dsKeys, string[] memory dsValues) = _getSingleMetadataKV("label", "Not Approved Test");
+        FilecoinWarmStorageService.DataSetCreateData memory createData = FilecoinWarmStorageService.DataSetCreateData({
+            payer: testClient,
+            clientDataSetId: 2000,
+            metadataKeys: dsKeys,
+            metadataValues: dsValues,
+            signature: FAKE_SIGNATURE
+        });
+
+        bytes memory encodedCreateData = abi.encode(
+            createData.payer,
+            createData.clientDataSetId,
+            createData.metadataKeys,
+            createData.metadataValues,
+            createData.signature
+        );
+
+        // Expect revert with OperatorNotApproved error
+        makeSignaturePass(testClient);
+        vm.expectRevert(
+            abi.encodeWithSelector(Errors.OperatorNotApproved.selector, testClient, address(pdpServiceWithPayments))
+        );
+        vm.prank(serviceProvider);
+        mockPDPVerifier.createDataSet(pdpServiceWithPayments, encodedCreateData);
+    }
+
+    function testOperatorApproval_InsufficientRateAllowance() public {
+        // Setup: Client with sufficient funds but insufficient rate allowance
+        address testClient = makeAddr("testClient2");
+        uint256 depositAmount = 10e18; // 10 USDFC (plenty of funds)
+
+        // Calculate minimum rate per epoch
+        // MINIMUM_STORAGE_RATE_PER_MONTH = 0.06 USDFC = 6e16
+        // EPOCHS_PER_MONTH = 2880 * 30 = 86400
+        // minimumRatePerEpoch = 6e16 / 86400 = 694444444444 (integer division)
+        uint256 minimumRatePerEpoch = 694444444444;
+        uint256 insufficientRateAllowance = minimumRatePerEpoch - 1; // Just below minimum
+
+        // Transfer tokens and set up approvals
+        mockUSDFC.safeTransfer(testClient, depositAmount);
+
+        vm.startPrank(testClient);
+        // Set operator approval with insufficient rate allowance
+        payments.setOperatorApproval(
+            mockUSDFC,
+            address(pdpServiceWithPayments),
+            true, // approved
+            insufficientRateAllowance, // rate allowance too low
+            1000e18, // lockup allowance sufficient
+            365 days // max lockup period sufficient
+        );
+        mockUSDFC.approve(address(payments), depositAmount);
+        payments.deposit(mockUSDFC, testClient, depositAmount);
+        vm.stopPrank();
+
+        // Prepare dataset creation data
+        (string[] memory dsKeys, string[] memory dsValues) = _getSingleMetadataKV("label", "Insufficient Rate Test");
+        FilecoinWarmStorageService.DataSetCreateData memory createData = FilecoinWarmStorageService.DataSetCreateData({
+            payer: testClient,
+            clientDataSetId: 2001,
+            metadataKeys: dsKeys,
+            metadataValues: dsValues,
+            signature: FAKE_SIGNATURE
+        });
+
+        bytes memory encodedCreateData = abi.encode(
+            createData.payer,
+            createData.clientDataSetId,
+            createData.metadataKeys,
+            createData.metadataValues,
+            createData.signature
+        );
+
+        // Expect revert with InsufficientRateAllowance error
+        makeSignaturePass(testClient);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                Errors.InsufficientRateAllowance.selector,
+                testClient,
+                address(pdpServiceWithPayments),
+                insufficientRateAllowance,
+                0, // rateUsage is 0 initially
+                minimumRatePerEpoch
+            )
+        );
+        vm.prank(serviceProvider);
+        mockPDPVerifier.createDataSet(pdpServiceWithPayments, encodedCreateData);
+    }
+
+    function testOperatorApproval_InsufficientLockupAllowance() public {
+        // Setup: Client with sufficient funds but insufficient lockup allowance
+        address testClient = makeAddr("testClient3");
+        uint256 depositAmount = 10e18; // 10 USDFC (plenty of funds)
+
+        // Calculate minimum lockup required
+        // MINIMUM_STORAGE_RATE_PER_MONTH = 0.06 USDFC = 6e16
+        // DEFAULT_LOCKUP_PERIOD = 86400
+        // EPOCHS_PER_MONTH = 86400
+        // minimumLockupRequired = (6e16 * 86400) / 86400 = 6e16
+        uint256 minimumLockupRequired = 6e16;
+        uint256 insufficientLockupAllowance = minimumLockupRequired - 1; // Just below minimum
+
+        // Transfer tokens and set up approvals
+        mockUSDFC.safeTransfer(testClient, depositAmount);
+
+        vm.startPrank(testClient);
+        // Set operator approval with insufficient lockup allowance
+        payments.setOperatorApproval(
+            mockUSDFC,
+            address(pdpServiceWithPayments),
+            true, // approved
+            1000e18, // rate allowance sufficient
+            insufficientLockupAllowance, // lockup allowance too low
+            365 days // max lockup period sufficient
+        );
+        mockUSDFC.approve(address(payments), depositAmount);
+        payments.deposit(mockUSDFC, testClient, depositAmount);
+        vm.stopPrank();
+
+        // Prepare dataset creation data
+        (string[] memory dsKeys, string[] memory dsValues) = _getSingleMetadataKV("label", "Insufficient Lockup Test");
+        FilecoinWarmStorageService.DataSetCreateData memory createData = FilecoinWarmStorageService.DataSetCreateData({
+            payer: testClient,
+            clientDataSetId: 2002,
+            metadataKeys: dsKeys,
+            metadataValues: dsValues,
+            signature: FAKE_SIGNATURE
+        });
+
+        bytes memory encodedCreateData = abi.encode(
+            createData.payer,
+            createData.clientDataSetId,
+            createData.metadataKeys,
+            createData.metadataValues,
+            createData.signature
+        );
+
+        // Expect revert with InsufficientLockupAllowance error
+        makeSignaturePass(testClient);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                Errors.InsufficientLockupAllowance.selector,
+                testClient,
+                address(pdpServiceWithPayments),
+                insufficientLockupAllowance,
+                0, // lockupUsage is 0 initially
+                minimumLockupRequired
+            )
+        );
+        vm.prank(serviceProvider);
+        mockPDPVerifier.createDataSet(pdpServiceWithPayments, encodedCreateData);
+    }
+
+    function testOperatorApproval_InsufficientMaxLockupPeriod() public {
+        // Setup: Client with sufficient funds but insufficient max lockup period
+        address testClient = makeAddr("testClient4");
+        uint256 depositAmount = 10e18; // 10 USDFC (plenty of funds)
+
+        // Get the default lockup period
+        // DEFAULT_LOCKUP_PERIOD = 2880 * 30 = 86400
+        uint256 defaultLockupPeriod = 2880 * 30;
+        uint256 insufficientMaxLockupPeriod = defaultLockupPeriod - 1; // Just below required
+
+        // Transfer tokens and set up approvals
+        mockUSDFC.safeTransfer(testClient, depositAmount);
+
+        vm.startPrank(testClient);
+        // Set operator approval with insufficient max lockup period
+        payments.setOperatorApproval(
+            mockUSDFC,
+            address(pdpServiceWithPayments),
+            true, // approved
+            1000e18, // rate allowance sufficient
+            1000e18, // lockup allowance sufficient
+            insufficientMaxLockupPeriod // max lockup period too low
+        );
+        mockUSDFC.approve(address(payments), depositAmount);
+        payments.deposit(mockUSDFC, testClient, depositAmount);
+        vm.stopPrank();
+
+        // Prepare dataset creation data
+        (string[] memory dsKeys, string[] memory dsValues) = _getSingleMetadataKV("label", "Insufficient Period Test");
+        FilecoinWarmStorageService.DataSetCreateData memory createData = FilecoinWarmStorageService.DataSetCreateData({
+            payer: testClient,
+            clientDataSetId: 2003,
+            metadataKeys: dsKeys,
+            metadataValues: dsValues,
+            signature: FAKE_SIGNATURE
+        });
+
+        bytes memory encodedCreateData = abi.encode(
+            createData.payer,
+            createData.clientDataSetId,
+            createData.metadataKeys,
+            createData.metadataValues,
+            createData.signature
+        );
+
+        // Expect revert with InsufficientMaxLockupPeriod error
+        makeSignaturePass(testClient);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                Errors.InsufficientMaxLockupPeriod.selector,
+                testClient,
+                address(pdpServiceWithPayments),
+                insufficientMaxLockupPeriod,
+                defaultLockupPeriod
+            )
+        );
+        vm.prank(serviceProvider);
+        mockPDPVerifier.createDataSet(pdpServiceWithPayments, encodedCreateData);
+    }
+
+    function testOperatorApproval_AllSufficient() public {
+        // Setup: Client with all approvals sufficient
+        address testClient = makeAddr("testClient5");
+        uint256 depositAmount = 10e18; // 10 USDFC (plenty of funds)
+
+        // Transfer tokens and set up sufficient approvals
+        mockUSDFC.safeTransfer(testClient, depositAmount);
+
+        vm.startPrank(testClient);
+        // Set operator approval with all sufficient values
+        payments.setOperatorApproval(
+            mockUSDFC,
+            address(pdpServiceWithPayments),
+            true, // approved
+            1000e18, // rate allowance more than sufficient
+            1000e18, // lockup allowance more than sufficient
+            365 days // max lockup period more than sufficient
+        );
+        mockUSDFC.approve(address(payments), depositAmount);
+        payments.deposit(mockUSDFC, testClient, depositAmount);
+        vm.stopPrank();
+
+        // Prepare dataset creation data
+        (string[] memory dsKeys, string[] memory dsValues) = _getSingleMetadataKV("label", "All Sufficient Test");
+        FilecoinWarmStorageService.DataSetCreateData memory createData = FilecoinWarmStorageService.DataSetCreateData({
+            payer: testClient,
+            clientDataSetId: 2004,
+            metadataKeys: dsKeys,
+            metadataValues: dsValues,
+            signature: FAKE_SIGNATURE
+        });
+
+        bytes memory encodedCreateData = abi.encode(
+            createData.payer,
+            createData.clientDataSetId,
+            createData.metadataKeys,
+            createData.metadataValues,
+            createData.signature
+        );
+
+        // Should succeed with all approvals sufficient
+        makeSignaturePass(testClient);
+        vm.prank(serviceProvider);
+        uint256 dataSetId = mockPDPVerifier.createDataSet(pdpServiceWithPayments, encodedCreateData);
+
+        // Verify dataset was created
+        assertEq(dataSetId, 1, "Dataset should be created with sufficient approvals");
     }
 
     uint256 nextClientDataSetId = 0;
@@ -978,9 +1481,9 @@ contract FilecoinWarmStorageServiceTest is MockFVMTest {
 
         // Setup client payment approval if not already done
         vm.startPrank(clientAddress);
-        payments.setOperatorApproval(mockUSDFC, address(pdpServiceWithPayments), true, 1000e6, 1000e6, 365 days);
-        mockUSDFC.approve(address(payments), 100e6);
-        payments.deposit(mockUSDFC, clientAddress, 100e6);
+        payments.setOperatorApproval(mockUSDFC, address(pdpServiceWithPayments), true, 1000e18, 1000e18, 365 days);
+        mockUSDFC.approve(address(payments), 100e18);
+        payments.deposit(mockUSDFC, clientAddress, 100e18);
         vm.stopPrank();
 
         // Create data set as approved provider
@@ -1164,9 +1667,9 @@ contract FilecoinWarmStorageServiceTest is MockFVMTest {
 
         // Setup client payment approval if not already done
         vm.startPrank(clientAddress);
-        payments.setOperatorApproval(mockUSDFC, address(pdpServiceWithPayments), true, 1000e6, 1000e6, 365 days);
-        mockUSDFC.approve(address(payments), 100e6);
-        payments.deposit(mockUSDFC, clientAddress, 100e6);
+        payments.setOperatorApproval(mockUSDFC, address(pdpServiceWithPayments), true, 1000e18, 1000e18, 365 days);
+        mockUSDFC.approve(address(payments), 100e18);
+        payments.deposit(mockUSDFC, clientAddress, 100e18);
         vm.stopPrank();
 
         // Create data set as approved provider
@@ -1309,11 +1812,11 @@ contract FilecoinWarmStorageServiceTest is MockFVMTest {
             mockUSDFC,
             address(pdpServiceWithPayments),
             true,
-            1000e6, // rate allowance
-            1000e6, // lockup allowance
+            1000e18, // rate allowance
+            1000e18, // lockup allowance
             365 days // max lockup period
         );
-        uint256 depositAmount = 100e6;
+        uint256 depositAmount = 100e18;
         mockUSDFC.approve(address(payments), depositAmount);
         payments.deposit(mockUSDFC, client, depositAmount);
         vm.stopPrank();
@@ -1489,11 +1992,11 @@ contract FilecoinWarmStorageServiceTest is MockFVMTest {
             mockUSDFC,
             address(pdpServiceWithPayments),
             true,
-            1000e6, // rate allowance
-            1000e6, // lockup allowance
+            1000e18, // rate allowance
+            1000e18, // lockup allowance
             365 days // max lockup period
         );
-        uint256 depositAmount = 100e6;
+        uint256 depositAmount = 100e18;
         mockUSDFC.approve(address(payments), depositAmount);
         payments.deposit(mockUSDFC, client, depositAmount);
         vm.stopPrank();
@@ -1610,11 +2113,11 @@ contract FilecoinWarmStorageServiceTest is MockFVMTest {
             mockUSDFC,
             address(pdpServiceWithPayments),
             true,
-            1000e6, // rate allowance
-            1000e6, // lockup allowance
+            1000e18, // rate allowance
+            1000e18, // lockup allowance
             365 days // max lockup period
         );
-        uint256 depositAmount = 100e6;
+        uint256 depositAmount = 100e18;
         mockUSDFC.approve(address(payments), depositAmount);
         payments.deposit(mockUSDFC, client, depositAmount);
         vm.stopPrank();
@@ -2829,8 +3332,8 @@ contract FilecoinWarmStorageServiceTest is MockFVMTest {
         );
 
         vm.startPrank(client);
-        payments.setOperatorApproval(mockUSDFC, address(pdpServiceWithPayments), true, 1000e6, 1000e6, 365 days);
-        uint256 depositAmount = 1e6;
+        payments.setOperatorApproval(mockUSDFC, address(pdpServiceWithPayments), true, 1000e18, 1000e18, 365 days);
+        uint256 depositAmount = 1e18;
         mockUSDFC.approve(address(payments), depositAmount);
         payments.deposit(mockUSDFC, client, depositAmount);
         vm.stopPrank();
@@ -2882,8 +3385,8 @@ contract FilecoinWarmStorageServiceTest is MockFVMTest {
         );
 
         vm.startPrank(client);
-        payments.setOperatorApproval(mockUSDFC, address(pdpServiceWithPayments), true, 1000e6, 1000e6, 365 days);
-        uint256 depositAmount = 1e6;
+        payments.setOperatorApproval(mockUSDFC, address(pdpServiceWithPayments), true, 1000e18, 1000e18, 365 days);
+        uint256 depositAmount = 1e18;
         mockUSDFC.approve(address(payments), depositAmount);
         payments.deposit(mockUSDFC, client, depositAmount);
         vm.stopPrank();
@@ -2933,8 +3436,8 @@ contract FilecoinWarmStorageServiceTest is MockFVMTest {
         );
 
         vm.startPrank(client);
-        payments.setOperatorApproval(mockUSDFC, address(pdpServiceWithPayments), true, 1000e6, 1000e6, 365 days);
-        uint256 depositAmount = 10e6;
+        payments.setOperatorApproval(mockUSDFC, address(pdpServiceWithPayments), true, 1000e18, 1000e18, 365 days);
+        uint256 depositAmount = 10e18;
         mockUSDFC.approve(address(payments), depositAmount);
         payments.deposit(mockUSDFC, client, depositAmount);
         vm.stopPrank();
@@ -3912,9 +4415,9 @@ contract FilecoinWarmStorageServiceTest is MockFVMTest {
 
         // Setup approvals and deposit
         vm.startPrank(client);
-        payments.setOperatorApproval(mockUSDFC, address(pdpServiceWithPayments), true, 1000e6, 1000e6, 365 days);
-        mockUSDFC.approve(address(payments), 10e6);
-        payments.deposit(mockUSDFC, client, 10e6);
+        payments.setOperatorApproval(mockUSDFC, address(pdpServiceWithPayments), true, 1000e18, 1000e18, 365 days);
+        mockUSDFC.approve(address(payments), 10e18);
+        payments.deposit(mockUSDFC, client, 10e18);
         vm.stopPrank();
 
         // Create dataset
@@ -3958,9 +4461,9 @@ contract FilecoinWarmStorageServiceTest is MockFVMTest {
 
         // Setup approvals and deposit
         vm.startPrank(client);
-        payments.setOperatorApproval(mockUSDFC, address(pdpServiceWithPayments), true, 1000e6, 1000e6, 365 days);
-        mockUSDFC.approve(address(payments), 10e6);
-        payments.deposit(mockUSDFC, client, 10e6);
+        payments.setOperatorApproval(mockUSDFC, address(pdpServiceWithPayments), true, 1000e18, 1000e18, 365 days);
+        mockUSDFC.approve(address(payments), 10e18);
+        payments.deposit(mockUSDFC, client, 10e18);
         vm.stopPrank();
 
         // Create dataset
@@ -3992,9 +4495,9 @@ contract FilecoinWarmStorageServiceTest is MockFVMTest {
     function testAddPiecesNonceUniquePerPayer() public {
         // Setup approvals and deposit
         vm.startPrank(client);
-        payments.setOperatorApproval(mockUSDFC, address(pdpServiceWithPayments), true, 1000e6, 1000e6, 365 days);
-        mockUSDFC.approve(address(payments), 20e6);
-        payments.deposit(mockUSDFC, client, 20e6);
+        payments.setOperatorApproval(mockUSDFC, address(pdpServiceWithPayments), true, 1000e18, 1000e18, 365 days);
+        mockUSDFC.approve(address(payments), 20e18);
+        payments.deposit(mockUSDFC, client, 20e18);
         vm.stopPrank();
 
         (string[] memory dsKeys, string[] memory dsValues) = _getSingleMetadataKV("label", "Dataset 1");
@@ -4061,9 +4564,9 @@ contract FilecoinWarmStorageServiceTest is MockFVMTest {
     function testNonceCannotBeReusedAcrossOperations() public {
         // Setup: Approvals and deposit
         vm.startPrank(client);
-        payments.setOperatorApproval(mockUSDFC, address(pdpServiceWithPayments), true, 1000e6, 1000e6, 365 days);
-        mockUSDFC.approve(address(payments), 10e6);
-        payments.deposit(mockUSDFC, client, 10e6);
+        payments.setOperatorApproval(mockUSDFC, address(pdpServiceWithPayments), true, 1000e18, 1000e18, 365 days);
+        mockUSDFC.approve(address(payments), 10e18);
+        payments.deposit(mockUSDFC, client, 10e18);
         vm.stopPrank();
 
         // Use nonce 777 to create a dataset
@@ -4204,7 +4707,7 @@ contract FilecoinWarmStorageServiceSignatureTest is Test {
         pdpService = SignatureCheckingService(address(serviceProxy));
 
         // Fund the payer
-        mockUSDFC.safeTransfer(payer, 1000 * 10 ** 6); // 1000 USDFC
+        mockUSDFC.safeTransfer(payer, 1000 * 10 ** 18); // 1000 USDFC
     }
 
     // Test the recoverSigner function indirectly through signature verification
