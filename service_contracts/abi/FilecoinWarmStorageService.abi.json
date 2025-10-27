@@ -795,6 +795,24 @@
   },
   {
     "type": "function",
+    "name": "updatePricing",
+    "inputs": [
+      {
+        "name": "newStoragePrice",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "newMinimumRate",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
     "name": "updateServiceCommission",
     "inputs": [
       {
@@ -1288,6 +1306,25 @@
   },
   {
     "type": "event",
+    "name": "PricingUpdated",
+    "inputs": [
+      {
+        "name": "storagePrice",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      },
+      {
+        "name": "minimumRate",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
     "name": "ProviderApproved",
     "inputs": [
       {
@@ -1435,6 +1472,11 @@
         "internalType": "address"
       }
     ]
+  },
+  {
+    "type": "error",
+    "name": "AtLeastOnePriceMustBeNonZero",
+    "inputs": []
   },
   {
     "type": "error",
@@ -2136,6 +2178,27 @@
       },
       {
         "name": "pdpEndEpoch",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "PriceExceedsMaximum",
+    "inputs": [
+      {
+        "name": "priceType",
+        "type": "uint8",
+        "internalType": "enum Errors.PriceType"
+      },
+      {
+        "name": "maxAllowed",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "actual",
         "type": "uint256",
         "internalType": "uint256"
       }

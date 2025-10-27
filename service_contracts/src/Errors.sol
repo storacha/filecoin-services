@@ -38,6 +38,13 @@ library Errors {
         Service
     }
 
+    enum PriceType {
+        /// Storage price per TiB per month
+        Storage,
+        /// Minimum monthly storage rate (floor price)
+        MinimumRate
+    }
+
     /// @notice An expected contract or participant address was the zero address
     /// @dev Used for parameter validation when a non-zero address is required
     /// @param field The specific address field that was zero (see enum {AddressField})
@@ -336,4 +343,13 @@ library Errors {
     error InsufficientMaxLockupPeriod(
         address payer, address operator, uint256 maxLockupPeriod, uint256 requiredLockupPeriod
     );
+
+    /// @notice At least one price parameter must be non-zero when updating pricing
+    error AtLeastOnePriceMustBeNonZero();
+
+    /// @notice Price update exceeds the maximum allowed value
+    /// @param priceType The type of price being updated (see enum {PriceType})
+    /// @param maxAllowed The maximum allowed value for this price type
+    /// @param actual The attempted value that exceeds the maximum
+    error PriceExceedsMaximum(PriceType priceType, uint256 maxAllowed, uint256 actual);
 }

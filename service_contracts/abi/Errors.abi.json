@@ -12,6 +12,11 @@
   },
   {
     "type": "error",
+    "name": "AtLeastOnePriceMustBeNonZero",
+    "inputs": []
+  },
+  {
+    "type": "error",
     "name": "CDNPaymentAlreadyTerminated",
     "inputs": [
       {
@@ -737,6 +742,27 @@
       },
       {
         "name": "pdpEndEpoch",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "PriceExceedsMaximum",
+    "inputs": [
+      {
+        "name": "priceType",
+        "type": "uint8",
+        "internalType": "enum Errors.PriceType"
+      },
+      {
+        "name": "maxAllowed",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "actual",
         "type": "uint256",
         "internalType": "uint256"
       }

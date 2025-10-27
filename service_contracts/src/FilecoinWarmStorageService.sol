@@ -115,6 +115,8 @@ contract FilecoinWarmStorageService is
     event ProviderApproved(uint256 indexed providerId);
     event ProviderUnapproved(uint256 indexed providerId);
 
+    event PricingUpdated(uint256 storagePrice, uint256 minimumRate);
+
     // =========================================================================
     // Structs
 
@@ -211,15 +213,17 @@ contract FilecoinWarmStorageService is
     bytes32 private constant WITH_CDN_STRING_STORAGE_REPR =
         0x7769746843444e0000000000000000000000000000000000000000000000000e;
 
-    // Pricing constants
-    uint256 private immutable STORAGE_PRICE_PER_TIB_PER_MONTH; // 2.5 USDFC per TiB per month without CDN with correct decimals
+    // Pricing constants (CDN egress pricing is immutable)
     uint256 private immutable CDN_EGRESS_PRICE_PER_TIB; // 7 USDFC per TiB of CDN egress
     uint256 private immutable CACHE_MISS_EGRESS_PRICE_PER_TIB; // 7 USDFC per TiB of cache miss egress
-    uint256 private immutable MINIMUM_STORAGE_RATE_PER_MONTH; // 0.06 USDFC per month minimum pricing floor
 
     // Fixed lockup amounts for CDN rails
     uint256 private immutable DEFAULT_CDN_LOCKUP_AMOUNT; // 0.7 USDFC
     uint256 private immutable DEFAULT_CACHE_MISS_LOCKUP_AMOUNT; // 0.3 USDFC
+
+    // Maximum pricing bounds (4x initial values)
+    uint256 private immutable MAX_STORAGE_PRICE_PER_TIB_PER_MONTH; // 10 USDFC (4x 2.5)
+    uint256 private immutable MAX_MINIMUM_STORAGE_RATE_PER_MONTH; // 0.24 USDFC (4x 0.06)
 
     // Token decimals
     uint8 private immutable TOKEN_DECIMALS;
@@ -290,6 +294,10 @@ contract FilecoinWarmStorageService is
 
     PlannedUpgrade private nextUpgrade;
 
+    // Pricing rates (mutable for future adjustments)
+    uint256 private storagePricePerTibPerMonth;
+    uint256 private minimumStorageRatePerMonth;
+
     event UpgradeAnnounced(PlannedUpgrade plannedUpgrade);
 
     // =========================================================================
@@ -346,11 +354,13 @@ contract FilecoinWarmStorageService is
         // Read token decimals from the USDFC token contract
         TOKEN_DECIMALS = _usdfc.decimals();
 
-        // Initialize the fee constants based on the actual token decimals
-        STORAGE_PRICE_PER_TIB_PER_MONTH = (5 * 10 ** TOKEN_DECIMALS) / 2; // 2.5 USDFC
+        // Initialize the immutable pricing constants based on the actual token decimals
         CDN_EGRESS_PRICE_PER_TIB = 7 * 10 ** TOKEN_DECIMALS; // 7 USDFC per TiB
         CACHE_MISS_EGRESS_PRICE_PER_TIB = 7 * 10 ** TOKEN_DECIMALS; // 7 USDFC per TiB
-        MINIMUM_STORAGE_RATE_PER_MONTH = (6 * 10 ** TOKEN_DECIMALS) / 100; // 0.06 USDFC minimum
+
+        // Initialize maximum pricing bounds (4x initial values)
+        MAX_STORAGE_PRICE_PER_TIB_PER_MONTH = 10 * 10 ** TOKEN_DECIMALS; // 10 USDFC (4x 2.5)
+        MAX_MINIMUM_STORAGE_RATE_PER_MONTH = (24 * 10 ** TOKEN_DECIMALS) / 100; // 0.24 USDFC (4x 0.06)
 
         // Initialize the lockup constants based on the actual token decimals
         DEFAULT_CDN_LOCKUP_AMOUNT = (7 * 10 ** TOKEN_DECIMALS) / 10; // 0.7 USDFC
@@ -401,6 +411,10 @@ contract FilecoinWarmStorageService is
 
         // Set commission rate
         serviceCommissionBps = 0; // 0%
+
+        // Initialize mutable pricing variables
+        storagePricePerTibPerMonth = (5 * 10 ** TOKEN_DECIMALS) / 2; // 2.5 USDFC
+        minimumStorageRatePerMonth = (6 * 10 ** TOKEN_DECIMALS) / 100; // 0.06 USDFC
     }
 
     function announcePlannedUpgrade(PlannedUpgrade calldata plannedUpgrade) external onlyOwner {
@@ -483,6 +497,40 @@ contract FilecoinWarmStorageService is
             Errors.CommissionExceedsMaximum(Errors.CommissionType.Service, COMMISSION_MAX_BPS, newCommissionBps)
         );
         serviceCommissionBps = newCommissionBps;
+    }
+
+    /**
+     * @notice Updates the pricing rates for storage services
+     * @dev Only callable by the contract owner. Pass 0 to keep existing value unchanged.
+     *      Price updates apply immediately to existing payment rails when they're recalculated
+     *      (e.g., during piece additions/deletions or proving period updates).
+     *      Maximum allowed values: 10 USDFC for storage, 0.24 USDFC for minimum rate.
+     * @param newStoragePrice New storage price per TiB per month (0 = no change, max 10 USDFC)
+     * @param newMinimumRate New minimum monthly storage rate (0 = no change, max 0.24 USDFC)
+     */
+    function updatePricing(uint256 newStoragePrice, uint256 newMinimumRate) external onlyOwner {
+        require(newStoragePrice > 0 || newMinimumRate > 0, Errors.AtLeastOnePriceMustBeNonZero());
+
+        if (newStoragePrice > 0) {
+            require(
+                newStoragePrice <= MAX_STORAGE_PRICE_PER_TIB_PER_MONTH,
+                Errors.PriceExceedsMaximum(
+                    Errors.PriceType.Storage, MAX_STORAGE_PRICE_PER_TIB_PER_MONTH, newStoragePrice
+                )
+            );
+            storagePricePerTibPerMonth = newStoragePrice;
+        }
+        if (newMinimumRate > 0) {
+            require(
+                newMinimumRate <= MAX_MINIMUM_STORAGE_RATE_PER_MONTH,
+                Errors.PriceExceedsMaximum(
+                    Errors.PriceType.MinimumRate, MAX_MINIMUM_STORAGE_RATE_PER_MONTH, newMinimumRate
+                )
+            );
+            minimumStorageRatePerMonth = newMinimumRate;
+        }
+
+        emit PricingUpdated(storagePricePerTibPerMonth, minimumStorageRatePerMonth);
     }
 
     /**
@@ -1127,7 +1175,7 @@ contract FilecoinWarmStorageService is
     /// @param payer The address of the payer
     function validatePayerOperatorApprovalAndFunds(FilecoinPayV1 payments, address payer) internal view {
         // Calculate required lockup for minimum pricing
-        uint256 minimumLockupRequired = (MINIMUM_STORAGE_RATE_PER_MONTH * DEFAULT_LOCKUP_PERIOD) / EPOCHS_PER_MONTH;
+        uint256 minimumLockupRequired = (minimumStorageRatePerMonth * DEFAULT_LOCKUP_PERIOD) / EPOCHS_PER_MONTH;
 
         // Check that payer has sufficient available funds
         (,, uint256 availableFunds,) = payments.getAccountInfoIfSettled(usdfcTokenAddress, payer);
@@ -1150,7 +1198,7 @@ contract FilecoinWarmStorageService is
         require(isApproved, Errors.OperatorNotApproved(payer, address(this)));
 
         // Calculate minimum rate per epoch
-        uint256 minimumRatePerEpoch = MINIMUM_STORAGE_RATE_PER_MONTH / EPOCHS_PER_MONTH;
+        uint256 minimumRatePerEpoch = minimumStorageRatePerMonth / EPOCHS_PER_MONTH;
 
         // Verify rate allowance is sufficient
         require(
@@ -1271,10 +1319,10 @@ contract FilecoinWarmStorageService is
      */
     function _calculateStorageRate(uint256 totalBytes) internal view returns (uint256) {
         // Calculate natural size-based rate
-        uint256 naturalRate = calculateStorageSizeBasedRatePerEpoch(totalBytes, STORAGE_PRICE_PER_TIB_PER_MONTH);
+        uint256 naturalRate = calculateStorageSizeBasedRatePerEpoch(totalBytes, storagePricePerTibPerMonth);
 
         // Calculate minimum rate (floor price converted to per-epoch)
-        uint256 minimumRate = MINIMUM_STORAGE_RATE_PER_MONTH / EPOCHS_PER_MONTH;
+        uint256 minimumRate = minimumStorageRatePerMonth / EPOCHS_PER_MONTH;
 
         // Return whichever is higher: natural rate or minimum rate
         return naturalRate > minimumRate ? naturalRate : minimumRate;
@@ -1371,12 +1419,12 @@ contract FilecoinWarmStorageService is
      */
     function getServicePrice() external view returns (ServicePricing memory pricing) {
         pricing = ServicePricing({
-            pricePerTiBPerMonthNoCDN: STORAGE_PRICE_PER_TIB_PER_MONTH,
+            pricePerTiBPerMonthNoCDN: storagePricePerTibPerMonth,
             pricePerTiBCdnEgress: CDN_EGRESS_PRICE_PER_TIB,
             pricePerTiBCacheMissEgress: CACHE_MISS_EGRESS_PRICE_PER_TIB,
             tokenAddress: usdfcTokenAddress,
             epochsPerMonth: EPOCHS_PER_MONTH,
-            minimumPricePerMonth: MINIMUM_STORAGE_RATE_PER_MONTH
+            minimumPricePerMonth: minimumStorageRatePerMonth
         });
     }
 
@@ -1386,7 +1434,7 @@ contract FilecoinWarmStorageService is
      * @return spPayment SP payment (per TiB per month)
      */
     function getEffectiveRates() external view returns (uint256 serviceFee, uint256 spPayment) {
-        uint256 total = STORAGE_PRICE_PER_TIB_PER_MONTH;
+        uint256 total = storagePricePerTibPerMonth;
 
         serviceFee = (total * serviceCommissionBps) / COMMISSION_MAX_BPS;
         spPayment = total - serviceFee;
