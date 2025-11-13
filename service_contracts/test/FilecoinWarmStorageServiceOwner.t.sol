@@ -139,7 +139,7 @@ contract FilecoinWarmStorageServiceOwnerTest is MockFVMTest {
             maxPieceSizeInBytes: 1024 * 1024,
             ipniPiece: false,
             ipniIpfs: false,
-            storagePricePerTibPerDay: 25 * 10 ** 5, // 2.5 USDFC per TiB per month
+            storagePricePerTibPerDay: 9 * 10 ** 5, // 0.9 USDFC per TiB per month
             minProvingPeriodInEpochs: 2880,
             location: "US",
             paymentTokenAddress: IERC20(address(0))
