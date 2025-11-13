@@ -1,6 +1,6 @@
 module github.com/storacha/filecoin-services/go
 
-go 1.24.6
+go 1.25.3
 
 require (
 	github.com/ethereum/go-ethereum v1.16.4
