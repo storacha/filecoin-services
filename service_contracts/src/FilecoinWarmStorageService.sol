@@ -413,8 +413,8 @@ contract FilecoinWarmStorageService is
         serviceCommissionBps = 0; // 0%
 
         // Initialize mutable pricing variables
-        storagePricePerTibPerMonth = (5 * 10 ** TOKEN_DECIMALS) / 2; // 2.5 USDFC
-        minimumStorageRatePerMonth = (6 * 10 ** TOKEN_DECIMALS) / 100; // 0.06 USDFC
+        storagePricePerTibPerMonth = (9 * 10 ** TOKEN_DECIMALS) / 10; // 0.9 USDFC
+        minimumStorageRatePerMonth = (9 * 10 ** TOKEN_DECIMALS) / 10; // 0.9 USDFC
     }
 
     function announcePlannedUpgrade(PlannedUpgrade calldata plannedUpgrade) external onlyOwner {
