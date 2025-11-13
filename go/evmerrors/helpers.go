@@ -23,6 +23,16 @@ func IsAddressEmptyCode(err error) bool {
 }
 
 
+// IsAtLeastOnePriceMustBeNonZero checks if the error is a AtLeastOnePriceMustBeNonZero error
+func IsAtLeastOnePriceMustBeNonZero(err error) bool {
+	if err == nil {
+		return false
+	}
+	_, ok := err.(*AtLeastOnePriceMustBeNonZero)
+	return ok
+}
+
+
 // IsCDNPaymentAlreadyTerminated checks if the error is a CDNPaymentAlreadyTerminated error
 func IsCDNPaymentAlreadyTerminated(err error) bool {
 	if err == nil {
@@ -243,6 +253,16 @@ func IsExtraDataRequired(err error) bool {
 }
 
 
+// IsExtraDataTooLarge checks if the error is a ExtraDataTooLarge error
+func IsExtraDataTooLarge(err error) bool {
+	if err == nil {
+		return false
+	}
+	_, ok := err.(*ExtraDataTooLarge)
+	return ok
+}
+
+
 // IsFailedCall checks if the error is a FailedCall error
 func IsFailedCall(err error) bool {
 	if err == nil {
@@ -283,6 +303,16 @@ func IsIndexedError(err error) bool {
 }
 
 
+// IsInsufficientCapabilitiesForProduct checks if the error is a InsufficientCapabilitiesForProduct error
+func IsInsufficientCapabilitiesForProduct(err error) bool {
+	if err == nil {
+		return false
+	}
+	_, ok := err.(*InsufficientCapabilitiesForProduct)
+	return ok
+}
+
+
 // IsInsufficientCurrentLockup checks if the error is a InsufficientCurrentLockup error
 func IsInsufficientCurrentLockup(err error) bool {
 	if err == nil {
@@ -313,6 +343,16 @@ func IsInsufficientFundsForSettlement(err error) bool {
 }
 
 
+// IsInsufficientLockupAllowance checks if the error is a InsufficientLockupAllowance error
+func IsInsufficientLockupAllowance(err error) bool {
+	if err == nil {
+		return false
+	}
+	_, ok := err.(*InsufficientLockupAllowance)
+	return ok
+}
+
+
 // IsInsufficientLockupForSettlement checks if the error is a InsufficientLockupForSettlement error
 func IsInsufficientLockupForSettlement(err error) bool {
 	if err == nil {
@@ -323,12 +363,42 @@ func IsInsufficientLockupForSettlement(err error) bool {
 }
 
 
+// IsInsufficientLockupFunds checks if the error is a InsufficientLockupFunds error
+func IsInsufficientLockupFunds(err error) bool {
+	if err == nil {
+		return false
+	}
+	_, ok := err.(*InsufficientLockupFunds)
+	return ok
+}
+
+
+// IsInsufficientMaxLockupPeriod checks if the error is a InsufficientMaxLockupPeriod error
+func IsInsufficientMaxLockupPeriod(err error) bool {
+	if err == nil {
+		return false
+	}
+	_, ok := err.(*InsufficientMaxLockupPeriod)
+	return ok
+}
+
+
 // IsInsufficientNativeTokenForBurn checks if the error is a InsufficientNativeTokenForBurn error
 func IsInsufficientNativeTokenForBurn(err error) bool {
 	if err == nil {
 		return false
 	}
 	_, ok := err.(*InsufficientNativeTokenForBurn)
+	return ok
+}
+
+
+// IsInsufficientRateAllowance checks if the error is a InsufficientRateAllowance error
+func IsInsufficientRateAllowance(err error) bool {
+	if err == nil {
+		return false
+	}
+	_, ok := err.(*InsufficientRateAllowance)
 	return ok
 }
 
@@ -843,6 +913,16 @@ func IsPaymentRailsNotFinalized(err error) bool {
 }
 
 
+// IsPriceExceedsMaximum checks if the error is a PriceExceedsMaximum error
+func IsPriceExceedsMaximum(err error) bool {
+	if err == nil {
+		return false
+	}
+	_, ok := err.(*PriceExceedsMaximum)
+	return ok
+}
+
+
 // IsProofAlreadySubmitted checks if the error is a ProofAlreadySubmitted error
 func IsProofAlreadySubmitted(err error) bool {
 	if err == nil {
@@ -859,16 +939,6 @@ func IsProviderAlreadyApproved(err error) bool {
 		return false
 	}
 	_, ok := err.(*ProviderAlreadyApproved)
-	return ok
-}
-
-
-// IsProviderNotApproved checks if the error is a ProviderNotApproved error
-func IsProviderNotApproved(err error) bool {
-	if err == nil {
-		return false
-	}
-	_, ok := err.(*ProviderNotApproved)
 	return ok
 }
 

@@ -17,6 +17,7 @@ type DecoderFunc func(data []byte) (ContractError, error)
 var ErrorDecoders = map[string]DecoderFunc{
 	"0xca062e88": decodeAddressAlreadySet, // AddressAlreadySet(uint8)
 	"0x9996b315": decodeAddressEmptyCode, // AddressEmptyCode(address)
+	"0x84b8dcae": decodeAtLeastOnePriceMustBeNonZero, // AtLeastOnePriceMustBeNonZero()
 	"0x8b82bf2b": decodeCDNPaymentAlreadyTerminated, // CDNPaymentAlreadyTerminated(uint256)
 	"0x34fee1da": decodeCacheMissPaymentAlreadyTerminated, // CacheMissPaymentAlreadyTerminated(uint256)
 	"0x1176a89f": decodeCallerNotPayer, // CallerNotPayer(uint256,address,address)
@@ -39,15 +40,21 @@ var ErrorDecoders = map[string]DecoderFunc{
 	"0x4c9c8ce3": decodeERC1967InvalidImplementation, // ERC1967InvalidImplementation(address)
 	"0xb398979f": decodeERC1967NonPayable, // ERC1967NonPayable()
 	"0x6a514229": decodeExtraDataRequired, // ExtraDataRequired()
+	"0xa9255222": decodeExtraDataTooLarge, // ExtraDataTooLarge(uint256,uint256)
 	"0xd6bda275": decodeFailedCall, // FailedCall()
 	"0xfadd7dd5": decodeFeeWithdrawalNativeTransferFailed, // FeeWithdrawalNativeTransferFailed(address,uint256)
 	"0x54f754fd": decodeFilBeamServiceNotConfigured, // FilBeamServiceNotConfigured(uint256)
 	"0xc7b67cf3": decodeIndexedError, // IndexedError(uint256,string)
+	"0xdd978c4f": decodeInsufficientCapabilitiesForProduct, // InsufficientCapabilitiesForProduct(uint8)
 	"0x6fb42560": decodeInsufficientCurrentLockup, // InsufficientCurrentLockup(address,address,uint256,uint256)
 	"0xcdc76e7c": decodeInsufficientFundsForOneTimePayment, // InsufficientFundsForOneTimePayment(address,address,uint256,uint256)
 	"0x707dfeab": decodeInsufficientFundsForSettlement, // InsufficientFundsForSettlement(address,address,uint256,uint256)
+	"0xdfca894c": decodeInsufficientLockupAllowance, // InsufficientLockupAllowance(address,address,uint256,uint256,uint256)
 	"0x18d8ed64": decodeInsufficientLockupForSettlement, // InsufficientLockupForSettlement(address,address,uint256,uint256)
+	"0xdae03403": decodeInsufficientLockupFunds, // InsufficientLockupFunds(address,uint256,uint256)
+	"0x591b6546": decodeInsufficientMaxLockupPeriod, // InsufficientMaxLockupPeriod(address,address,uint256,uint256)
 	"0x3e2f02c1": decodeInsufficientNativeTokenForBurn, // InsufficientNativeTokenForBurn(uint256,uint256)
+	"0x3a66032e": decodeInsufficientRateAllowance, // InsufficientRateAllowance(address,address,uint256,uint256,uint256)
 	"0xe610210c": decodeInsufficientUnlockedFunds, // InsufficientUnlockedFunds(uint256,uint256)
 	"0x985bf88a": decodeInvalidChallengeCount, // InvalidChallengeCount(uint256,uint256,uint256)
 	"0x25a0c7f7": decodeInvalidChallengeEpoch, // InvalidChallengeEpoch(uint256,uint256,uint256,uint256)
@@ -99,9 +106,9 @@ var ErrorDecoders = map[string]DecoderFunc{
 	"0x1e4fbdf7": decodeOwnableInvalidOwner, // OwnableInvalidOwner(address)
 	"0x118cdaa7": decodeOwnableUnauthorizedAccount, // OwnableUnauthorizedAccount(address)
 	"0x23fe2e89": decodePaymentRailsNotFinalized, // PaymentRailsNotFinalized(uint256,uint256)
+	"0x40dc9097": decodePriceExceedsMaximum, // PriceExceedsMaximum(uint8,uint256,uint256)
 	"0x425335c3": decodeProofAlreadySubmitted, // ProofAlreadySubmitted(uint256)
 	"0x431cf638": decodeProviderAlreadyApproved, // ProviderAlreadyApproved(uint256)
-	"0x0d141d0c": decodeProviderNotApproved, // ProviderNotApproved(address,uint256)
 	"0x52d6fdb5": decodeProviderNotInApprovedList, // ProviderNotInApprovedList(uint256)
 	"0x232cb27a": decodeProviderNotRegistered, // ProviderNotRegistered(address)
 	"0x28bb1a79": decodeProvingNotStarted, // ProvingNotStarted(uint256)
@@ -171,6 +178,12 @@ func decodeAddressEmptyCode(data []byte) (ContractError, error) {
 	return &AddressEmptyCode{
 		Target: values[0].(common.Address),
 	}, nil
+}
+
+
+// decodeAtLeastOnePriceMustBeNonZero decodes AtLeastOnePriceMustBeNonZero error parameters
+func decodeAtLeastOnePriceMustBeNonZero(data []byte) (ContractError, error) {
+	return &AtLeastOnePriceMustBeNonZero{}, nil
 }
 
 
@@ -675,6 +688,31 @@ func decodeExtraDataRequired(data []byte) (ContractError, error) {
 }
 
 
+// decodeExtraDataTooLarge decodes ExtraDataTooLarge error parameters
+func decodeExtraDataTooLarge(data []byte) (ContractError, error) {
+	// Define ABI arguments
+	arguments := abi.Arguments{
+		{Type: mustNewType("uint256")},
+		{Type: mustNewType("uint256")},
+	}
+
+	// Unpack the data
+	values, err := arguments.Unpack(data)
+	if err != nil {
+		return nil, fmt.Errorf("failed to unpack error data: %w", err)
+	}
+
+	if len(values) != 2 {
+		return nil, fmt.Errorf("expected 2 values, got %d", len(values))
+	}
+
+	return &ExtraDataTooLarge{
+		ActualSize: values[0].(*big.Int),
+		MaxAllowedSize: values[1].(*big.Int),
+	}, nil
+}
+
+
 // decodeFailedCall decodes FailedCall error parameters
 func decodeFailedCall(data []byte) (ContractError, error) {
 	return &FailedCall{}, nil
@@ -750,6 +788,29 @@ func decodeIndexedError(data []byte) (ContractError, error) {
 	return &IndexedError{
 		Idx: values[0].(*big.Int),
 		Msg: values[1].(string),
+	}, nil
+}
+
+
+// decodeInsufficientCapabilitiesForProduct decodes InsufficientCapabilitiesForProduct error parameters
+func decodeInsufficientCapabilitiesForProduct(data []byte) (ContractError, error) {
+	// Define ABI arguments
+	arguments := abi.Arguments{
+		{Type: mustNewType("uint8")},
+	}
+
+	// Unpack the data
+	values, err := arguments.Unpack(data)
+	if err != nil {
+		return nil, fmt.Errorf("failed to unpack error data: %w", err)
+	}
+
+	if len(values) != 1 {
+		return nil, fmt.Errorf("expected 1 values, got %d", len(values))
+	}
+
+	return &InsufficientCapabilitiesForProduct{
+		ProductType: uint8(values[0].(uint8)),
 	}, nil
 }
 
@@ -841,6 +902,37 @@ func decodeInsufficientFundsForSettlement(data []byte) (ContractError, error) {
 }
 
 
+// decodeInsufficientLockupAllowance decodes InsufficientLockupAllowance error parameters
+func decodeInsufficientLockupAllowance(data []byte) (ContractError, error) {
+	// Define ABI arguments
+	arguments := abi.Arguments{
+		{Type: mustNewType("address")},
+		{Type: mustNewType("address")},
+		{Type: mustNewType("uint256")},
+		{Type: mustNewType("uint256")},
+		{Type: mustNewType("uint256")},
+	}
+
+	// Unpack the data
+	values, err := arguments.Unpack(data)
+	if err != nil {
+		return nil, fmt.Errorf("failed to unpack error data: %w", err)
+	}
+
+	if len(values) != 5 {
+		return nil, fmt.Errorf("expected 5 values, got %d", len(values))
+	}
+
+	return &InsufficientLockupAllowance{
+		Payer: values[0].(common.Address),
+		Operator: values[1].(common.Address),
+		LockupAllowance: values[2].(*big.Int),
+		LockupUsage: values[3].(*big.Int),
+		MinimumLockupRequired: values[4].(*big.Int),
+	}, nil
+}
+
+
 // decodeInsufficientLockupForSettlement decodes InsufficientLockupForSettlement error parameters
 func decodeInsufficientLockupForSettlement(data []byte) (ContractError, error) {
 	// Define ABI arguments
@@ -870,6 +962,62 @@ func decodeInsufficientLockupForSettlement(data []byte) (ContractError, error) {
 }
 
 
+// decodeInsufficientLockupFunds decodes InsufficientLockupFunds error parameters
+func decodeInsufficientLockupFunds(data []byte) (ContractError, error) {
+	// Define ABI arguments
+	arguments := abi.Arguments{
+		{Type: mustNewType("address")},
+		{Type: mustNewType("uint256")},
+		{Type: mustNewType("uint256")},
+	}
+
+	// Unpack the data
+	values, err := arguments.Unpack(data)
+	if err != nil {
+		return nil, fmt.Errorf("failed to unpack error data: %w", err)
+	}
+
+	if len(values) != 3 {
+		return nil, fmt.Errorf("expected 3 values, got %d", len(values))
+	}
+
+	return &InsufficientLockupFunds{
+		Payer: values[0].(common.Address),
+		MinimumRequired: values[1].(*big.Int),
+		Available: values[2].(*big.Int),
+	}, nil
+}
+
+
+// decodeInsufficientMaxLockupPeriod decodes InsufficientMaxLockupPeriod error parameters
+func decodeInsufficientMaxLockupPeriod(data []byte) (ContractError, error) {
+	// Define ABI arguments
+	arguments := abi.Arguments{
+		{Type: mustNewType("address")},
+		{Type: mustNewType("address")},
+		{Type: mustNewType("uint256")},
+		{Type: mustNewType("uint256")},
+	}
+
+	// Unpack the data
+	values, err := arguments.Unpack(data)
+	if err != nil {
+		return nil, fmt.Errorf("failed to unpack error data: %w", err)
+	}
+
+	if len(values) != 4 {
+		return nil, fmt.Errorf("expected 4 values, got %d", len(values))
+	}
+
+	return &InsufficientMaxLockupPeriod{
+		Payer: values[0].(common.Address),
+		Operator: values[1].(common.Address),
+		MaxLockupPeriod: values[2].(*big.Int),
+		RequiredLockupPeriod: values[3].(*big.Int),
+	}, nil
+}
+
+
 // decodeInsufficientNativeTokenForBurn decodes InsufficientNativeTokenForBurn error parameters
 func decodeInsufficientNativeTokenForBurn(data []byte) (ContractError, error) {
 	// Define ABI arguments
@@ -891,6 +1039,37 @@ func decodeInsufficientNativeTokenForBurn(data []byte) (ContractError, error) {
 	return &InsufficientNativeTokenForBurn{
 		Required: values[0].(*big.Int),
 		Sent: values[1].(*big.Int),
+	}, nil
+}
+
+
+// decodeInsufficientRateAllowance decodes InsufficientRateAllowance error parameters
+func decodeInsufficientRateAllowance(data []byte) (ContractError, error) {
+	// Define ABI arguments
+	arguments := abi.Arguments{
+		{Type: mustNewType("address")},
+		{Type: mustNewType("address")},
+		{Type: mustNewType("uint256")},
+		{Type: mustNewType("uint256")},
+		{Type: mustNewType("uint256")},
+	}
+
+	// Unpack the data
+	values, err := arguments.Unpack(data)
+	if err != nil {
+		return nil, fmt.Errorf("failed to unpack error data: %w", err)
+	}
+
+	if len(values) != 5 {
+		return nil, fmt.Errorf("expected 5 values, got %d", len(values))
+	}
+
+	return &InsufficientRateAllowance{
+		Payer: values[0].(common.Address),
+		Operator: values[1].(common.Address),
+		RateAllowance: values[2].(*big.Int),
+		RateUsage: values[3].(*big.Int),
+		MinimumRateRequired: values[4].(*big.Int),
 	}, nil
 }
 
@@ -2023,7 +2202,7 @@ func decodeOperatorNotApproved(data []byte) (ContractError, error) {
 	}
 
 	return &OperatorNotApproved{
-		From: values[0].(common.Address),
+		Payer: values[0].(common.Address),
 		Operator: values[1].(common.Address),
 	}, nil
 }
@@ -2125,6 +2304,33 @@ func decodePaymentRailsNotFinalized(data []byte) (ContractError, error) {
 }
 
 
+// decodePriceExceedsMaximum decodes PriceExceedsMaximum error parameters
+func decodePriceExceedsMaximum(data []byte) (ContractError, error) {
+	// Define ABI arguments
+	arguments := abi.Arguments{
+		{Type: mustNewType("uint8")},
+		{Type: mustNewType("uint256")},
+		{Type: mustNewType("uint256")},
+	}
+
+	// Unpack the data
+	values, err := arguments.Unpack(data)
+	if err != nil {
+		return nil, fmt.Errorf("failed to unpack error data: %w", err)
+	}
+
+	if len(values) != 3 {
+		return nil, fmt.Errorf("expected 3 values, got %d", len(values))
+	}
+
+	return &PriceExceedsMaximum{
+		PriceType: uint8(values[0].(uint8)),
+		MaxAllowed: values[1].(*big.Int),
+		Actual: values[2].(*big.Int),
+	}, nil
+}
+
+
 // decodeProofAlreadySubmitted decodes ProofAlreadySubmitted error parameters
 func decodeProofAlreadySubmitted(data []byte) (ContractError, error) {
 	// Define ABI arguments
@@ -2167,31 +2373,6 @@ func decodeProviderAlreadyApproved(data []byte) (ContractError, error) {
 
 	return &ProviderAlreadyApproved{
 		ProviderId: values[0].(*big.Int),
-	}, nil
-}
-
-
-// decodeProviderNotApproved decodes ProviderNotApproved error parameters
-func decodeProviderNotApproved(data []byte) (ContractError, error) {
-	// Define ABI arguments
-	arguments := abi.Arguments{
-		{Type: mustNewType("address")},
-		{Type: mustNewType("uint256")},
-	}
-
-	// Unpack the data
-	values, err := arguments.Unpack(data)
-	if err != nil {
-		return nil, fmt.Errorf("failed to unpack error data: %w", err)
-	}
-
-	if len(values) != 2 {
-		return nil, fmt.Errorf("expected 2 values, got %d", len(values))
-	}
-
-	return &ProviderNotApproved{
-		Provider: values[0].(common.Address),
-		ProviderId: values[1].(*big.Int),
 	}, nil
 }
 

@@ -23,6 +23,11 @@
   },
   {
     "type": "error",
+    "name": "AtLeastOnePriceMustBeNonZero",
+    "inputs": []
+  },
+  {
+    "type": "error",
     "name": "CDNPaymentAlreadyTerminated",
     "inputs": [
       {
@@ -362,6 +367,22 @@
   },
   {
     "type": "error",
+    "name": "ExtraDataTooLarge",
+    "inputs": [
+      {
+        "name": "actualSize",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "maxAllowedSize",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ]
+  },
+  {
+    "type": "error",
     "name": "FailedCall",
     "inputs": []
   },
@@ -405,6 +426,17 @@
         "name": "msg",
         "type": "string",
         "internalType": "string"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "InsufficientCapabilitiesForProduct",
+    "inputs": [
+      {
+        "name": "productType",
+        "type": "uint8",
+        "internalType": "enum ServiceProviderRegistryStorage.ProductType"
       }
     ]
   },
@@ -488,6 +520,37 @@
   },
   {
     "type": "error",
+    "name": "InsufficientLockupAllowance",
+    "inputs": [
+      {
+        "name": "payer",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "operator",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "lockupAllowance",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "lockupUsage",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "minimumLockupRequired",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ]
+  },
+  {
+    "type": "error",
     "name": "InsufficientLockupForSettlement",
     "inputs": [
       {
@@ -514,6 +577,53 @@
   },
   {
     "type": "error",
+    "name": "InsufficientLockupFunds",
+    "inputs": [
+      {
+        "name": "payer",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "minimumRequired",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "available",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "InsufficientMaxLockupPeriod",
+    "inputs": [
+      {
+        "name": "payer",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "operator",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "maxLockupPeriod",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "requiredLockupPeriod",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ]
+  },
+  {
+    "type": "error",
     "name": "InsufficientNativeTokenForBurn",
     "inputs": [
       {
@@ -523,6 +633,37 @@
       },
       {
         "name": "sent",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "InsufficientRateAllowance",
+    "inputs": [
+      {
+        "name": "payer",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "operator",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "rateAllowance",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "rateUsage",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "minimumRateRequired",
         "type": "uint256",
         "internalType": "uint256"
       }
@@ -1349,7 +1490,7 @@
     "name": "OperatorNotApproved",
     "inputs": [
       {
-        "name": "from",
+        "name": "payer",
         "type": "address",
         "internalType": "address"
       },
@@ -1416,6 +1557,27 @@
   },
   {
     "type": "error",
+    "name": "PriceExceedsMaximum",
+    "inputs": [
+      {
+        "name": "priceType",
+        "type": "uint8",
+        "internalType": "enum Errors.PriceType"
+      },
+      {
+        "name": "maxAllowed",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "actual",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ]
+  },
+  {
+    "type": "error",
     "name": "ProofAlreadySubmitted",
     "inputs": [
       {
@@ -1429,22 +1591,6 @@
     "type": "error",
     "name": "ProviderAlreadyApproved",
     "inputs": [
-      {
-        "name": "providerId",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ]
-  },
-  {
-    "type": "error",
-    "name": "ProviderNotApproved",
-    "inputs": [
-      {
-        "name": "provider",
-        "type": "address",
-        "internalType": "address"
-      },
       {
         "name": "providerId",
         "type": "uint256",

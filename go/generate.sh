@@ -145,7 +145,7 @@ mv filecoin_warm_storage_service_state_view_temp.go filecoin_warm_storage_servic
 cd "$SCRIPT_DIR"
 
 echo "Generating Payments bindings..."
-abigen --abi <(jq -r '.' "$ABI_DIR/Payments.abi.json") \
+abigen --abi <(jq -r '.' "$ABI_DIR/FilecoinPayV1.abi.json") \
        --pkg bindings \
        --type Payments \
        --out "$BINDINGS_DIR/payments.go"

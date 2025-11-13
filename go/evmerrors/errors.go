@@ -53,6 +53,23 @@ func (e *AddressEmptyCode) ErrorSelector() string {
 }
 
 
+// AtLeastOnePriceMustBeNonZero represents the AtLeastOnePriceMustBeNonZero error
+type AtLeastOnePriceMustBeNonZero struct {
+}
+
+func (e *AtLeastOnePriceMustBeNonZero) Error() string {
+	return "AtLeastOnePriceMustBeNonZero()"
+}
+
+func (e *AtLeastOnePriceMustBeNonZero) ErrorName() string {
+	return "AtLeastOnePriceMustBeNonZero"
+}
+
+func (e *AtLeastOnePriceMustBeNonZero) ErrorSelector() string {
+	return "0x84b8dcae"
+}
+
+
 // CDNPaymentAlreadyTerminated represents the CDNPaymentAlreadyTerminated error
 type CDNPaymentAlreadyTerminated struct {
 	DataSetId *big.Int
@@ -469,6 +486,25 @@ func (e *ExtraDataRequired) ErrorSelector() string {
 }
 
 
+// ExtraDataTooLarge represents the ExtraDataTooLarge error
+type ExtraDataTooLarge struct {
+	ActualSize *big.Int
+	MaxAllowedSize *big.Int
+}
+
+func (e *ExtraDataTooLarge) Error() string {
+	return fmt.Sprintf("ExtraDataTooLarge(ActualSize=%v, MaxAllowedSize=%v)", e.ActualSize, e.MaxAllowedSize)
+}
+
+func (e *ExtraDataTooLarge) ErrorName() string {
+	return "ExtraDataTooLarge"
+}
+
+func (e *ExtraDataTooLarge) ErrorSelector() string {
+	return "0xa9255222"
+}
+
+
 // FailedCall represents the FailedCall error
 type FailedCall struct {
 }
@@ -542,6 +578,24 @@ func (e *IndexedError) ErrorSelector() string {
 }
 
 
+// InsufficientCapabilitiesForProduct represents the InsufficientCapabilitiesForProduct error
+type InsufficientCapabilitiesForProduct struct {
+	ProductType uint8
+}
+
+func (e *InsufficientCapabilitiesForProduct) Error() string {
+	return fmt.Sprintf("InsufficientCapabilitiesForProduct(ProductType=%v)", e.ProductType)
+}
+
+func (e *InsufficientCapabilitiesForProduct) ErrorName() string {
+	return "InsufficientCapabilitiesForProduct"
+}
+
+func (e *InsufficientCapabilitiesForProduct) ErrorSelector() string {
+	return "0xdd978c4f"
+}
+
+
 // InsufficientCurrentLockup represents the InsufficientCurrentLockup error
 type InsufficientCurrentLockup struct {
 	Token common.Address
@@ -605,6 +659,28 @@ func (e *InsufficientFundsForSettlement) ErrorSelector() string {
 }
 
 
+// InsufficientLockupAllowance represents the InsufficientLockupAllowance error
+type InsufficientLockupAllowance struct {
+	Payer common.Address
+	Operator common.Address
+	LockupAllowance *big.Int
+	LockupUsage *big.Int
+	MinimumLockupRequired *big.Int
+}
+
+func (e *InsufficientLockupAllowance) Error() string {
+	return fmt.Sprintf("InsufficientLockupAllowance(Payer=%s, Operator=%s, LockupAllowance=%v, LockupUsage=%v, MinimumLockupRequired=%v)", e.Payer.Hex(), e.Operator.Hex(), e.LockupAllowance, e.LockupUsage, e.MinimumLockupRequired)
+}
+
+func (e *InsufficientLockupAllowance) ErrorName() string {
+	return "InsufficientLockupAllowance"
+}
+
+func (e *InsufficientLockupAllowance) ErrorSelector() string {
+	return "0xdfca894c"
+}
+
+
 // InsufficientLockupForSettlement represents the InsufficientLockupForSettlement error
 type InsufficientLockupForSettlement struct {
 	Token common.Address
@@ -626,6 +702,47 @@ func (e *InsufficientLockupForSettlement) ErrorSelector() string {
 }
 
 
+// InsufficientLockupFunds represents the InsufficientLockupFunds error
+type InsufficientLockupFunds struct {
+	Payer common.Address
+	MinimumRequired *big.Int
+	Available *big.Int
+}
+
+func (e *InsufficientLockupFunds) Error() string {
+	return fmt.Sprintf("InsufficientLockupFunds(Payer=%s, MinimumRequired=%v, Available=%v)", e.Payer.Hex(), e.MinimumRequired, e.Available)
+}
+
+func (e *InsufficientLockupFunds) ErrorName() string {
+	return "InsufficientLockupFunds"
+}
+
+func (e *InsufficientLockupFunds) ErrorSelector() string {
+	return "0xdae03403"
+}
+
+
+// InsufficientMaxLockupPeriod represents the InsufficientMaxLockupPeriod error
+type InsufficientMaxLockupPeriod struct {
+	Payer common.Address
+	Operator common.Address
+	MaxLockupPeriod *big.Int
+	RequiredLockupPeriod *big.Int
+}
+
+func (e *InsufficientMaxLockupPeriod) Error() string {
+	return fmt.Sprintf("InsufficientMaxLockupPeriod(Payer=%s, Operator=%s, MaxLockupPeriod=%v, RequiredLockupPeriod=%v)", e.Payer.Hex(), e.Operator.Hex(), e.MaxLockupPeriod, e.RequiredLockupPeriod)
+}
+
+func (e *InsufficientMaxLockupPeriod) ErrorName() string {
+	return "InsufficientMaxLockupPeriod"
+}
+
+func (e *InsufficientMaxLockupPeriod) ErrorSelector() string {
+	return "0x591b6546"
+}
+
+
 // InsufficientNativeTokenForBurn represents the InsufficientNativeTokenForBurn error
 type InsufficientNativeTokenForBurn struct {
 	Required *big.Int
@@ -642,6 +759,28 @@ func (e *InsufficientNativeTokenForBurn) ErrorName() string {
 
 func (e *InsufficientNativeTokenForBurn) ErrorSelector() string {
 	return "0x3e2f02c1"
+}
+
+
+// InsufficientRateAllowance represents the InsufficientRateAllowance error
+type InsufficientRateAllowance struct {
+	Payer common.Address
+	Operator common.Address
+	RateAllowance *big.Int
+	RateUsage *big.Int
+	MinimumRateRequired *big.Int
+}
+
+func (e *InsufficientRateAllowance) Error() string {
+	return fmt.Sprintf("InsufficientRateAllowance(Payer=%s, Operator=%s, RateAllowance=%v, RateUsage=%v, MinimumRateRequired=%v)", e.Payer.Hex(), e.Operator.Hex(), e.RateAllowance, e.RateUsage, e.MinimumRateRequired)
+}
+
+func (e *InsufficientRateAllowance) ErrorName() string {
+	return "InsufficientRateAllowance"
+}
+
+func (e *InsufficientRateAllowance) ErrorSelector() string {
+	return "0x3a66032e"
 }
 
 
@@ -1538,12 +1677,12 @@ func (e *OperatorLockupAllowanceExceeded) ErrorSelector() string {
 
 // OperatorNotApproved represents the OperatorNotApproved error
 type OperatorNotApproved struct {
-	From common.Address
+	Payer common.Address
 	Operator common.Address
 }
 
 func (e *OperatorNotApproved) Error() string {
-	return fmt.Sprintf("OperatorNotApproved(From=%s, Operator=%s)", e.From.Hex(), e.Operator.Hex())
+	return fmt.Sprintf("OperatorNotApproved(Payer=%s, Operator=%s)", e.Payer.Hex(), e.Operator.Hex())
 }
 
 func (e *OperatorNotApproved) ErrorName() string {
@@ -1629,6 +1768,26 @@ func (e *PaymentRailsNotFinalized) ErrorSelector() string {
 }
 
 
+// PriceExceedsMaximum represents the PriceExceedsMaximum error
+type PriceExceedsMaximum struct {
+	PriceType uint8
+	MaxAllowed *big.Int
+	Actual *big.Int
+}
+
+func (e *PriceExceedsMaximum) Error() string {
+	return fmt.Sprintf("PriceExceedsMaximum(PriceType=%v, MaxAllowed=%v, Actual=%v)", e.PriceType, e.MaxAllowed, e.Actual)
+}
+
+func (e *PriceExceedsMaximum) ErrorName() string {
+	return "PriceExceedsMaximum"
+}
+
+func (e *PriceExceedsMaximum) ErrorSelector() string {
+	return "0x40dc9097"
+}
+
+
 // ProofAlreadySubmitted represents the ProofAlreadySubmitted error
 type ProofAlreadySubmitted struct {
 	DataSetId *big.Int
@@ -1662,25 +1821,6 @@ func (e *ProviderAlreadyApproved) ErrorName() string {
 
 func (e *ProviderAlreadyApproved) ErrorSelector() string {
 	return "0x431cf638"
-}
-
-
-// ProviderNotApproved represents the ProviderNotApproved error
-type ProviderNotApproved struct {
-	Provider common.Address
-	ProviderId *big.Int
-}
-
-func (e *ProviderNotApproved) Error() string {
-	return fmt.Sprintf("ProviderNotApproved(Provider=%s, ProviderId=%v)", e.Provider.Hex(), e.ProviderId)
-}
-
-func (e *ProviderNotApproved) ErrorName() string {
-	return "ProviderNotApproved"
-}
-
-func (e *ProviderNotApproved) ErrorSelector() string {
-	return "0x0d141d0c"
 }
 
 
