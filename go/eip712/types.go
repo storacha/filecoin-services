@@ -37,7 +37,7 @@ type PieceMetadata struct {
 
 type AddPieces struct {
 	ClientDataSetId *big.Int        `json:"clientDataSetId"`
-	FirstAdded      *big.Int        `json:"firstAdded"`
+	Nonce           *big.Int        `json:"nonce"`
 	PieceData       []Cid           `json:"pieceData"`
 	PieceMetadata   []PieceMetadata `json:"pieceMetadata"`
 }
@@ -77,7 +77,7 @@ var EIP712Types = apitypes.Types{
 	},
 	"AddPieces": {
 		{Name: "clientDataSetId", Type: "uint256"},
-		{Name: "firstAdded", Type: "uint256"},
+		{Name: "nonce", Type: "uint256"},
 		{Name: "pieceData", Type: "Cid[]"},
 		{Name: "pieceMetadata", Type: "PieceMetadata[]"},
 	},

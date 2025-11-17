@@ -49,31 +49,36 @@ func TestEncodingMatchesContractDecoding(t *testing.T) {
 
 	// Test AddPieces encoding
 	t.Run("AddPieces", func(t *testing.T) {
+		nonce := big.NewInt(7)
 		signature := &AuthSignature{V: 27, R: [32]byte{1}, S: [32]byte{2}}
 		metadata := [][]MetadataEntry{
 			{{Key: "piece1", Value: "value1"}},
 			{{Key: "piece2", Value: "value2"}},
 		}
 
-		encoded, err := encoder.EncodeAddPiecesExtraData(signature, metadata)
+		encoded, err := encoder.EncodeAddPiecesExtraData(nonce, signature, metadata)
 		require.NoError(t, err)
 
 		// Decode using the contract's expected format
 		arguments := abi.Arguments{
+			{Type: uint256Type},
+			{Type: stringDoubleArrayType},
+			{Type: stringDoubleArrayType},
 			{Type: bytesType},
-			{Type: stringDoubleArrayType},
-			{Type: stringDoubleArrayType},
 		}
 
 		unpacked, err := arguments.Unpack(encoded)
 		require.NoError(t, err)
-		require.Len(t, unpacked, 3)
+		require.Len(t, unpacked, 4)
+
+		// Verify nonce
+		require.Equal(t, nonce, unpacked[0].(*big.Int))
 
 		// Verify signature
-		require.NotEmpty(t, unpacked[0].([]byte))
+		require.NotEmpty(t, unpacked[3].([]byte))
 
 		// Verify metadata keys
-		keys := unpacked[1].([][]string)
+		keys := unpacked[1].([][]string) // wt operations preserve order
 		require.Len(t, keys, 2)
 		require.Equal(t, []string{"piece1"}, keys[0])
 		require.Equal(t, []string{"piece2"}, keys[1])
