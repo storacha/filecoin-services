@@ -82,8 +82,9 @@ func (e *ExtraDataEncoder) EncodeCreateDataSetExtraData(
 }
 
 // EncodeAddPiecesExtraData encodes the extraData for piecesAdded callback
-// Format matches: abi.decode(extraData, (bytes, string[][], string[][]))
+// Format matches: abi.decode(extraData, (uint256, string[][], string[][], bytes))
 func (e *ExtraDataEncoder) EncodeAddPiecesExtraData(
+	nonce *big.Int,
 	signature *AuthSignature,
 	metadata [][]MetadataEntry,
 ) ([]byte, error) {
@@ -107,12 +108,13 @@ func (e *ExtraDataEncoder) EncodeAddPiecesExtraData(
 	}
 
 	arguments := abi.Arguments{
-		{Type: bytesType},              // signature
+		{Type: uint256Type},            // nonce
 		{Type: stringDoubleArrayType},  // metadataKeys[][]
 		{Type: stringDoubleArrayType},  // metadataValues[][]
+		{Type: bytesType},              // signature
 	}
 
-	return arguments.Pack(signatureBytes, keysArray, valuesArray)
+	return arguments.Pack(nonce, keysArray, valuesArray, signatureBytes)
 }
 
 // EncodeSchedulePieceRemovalsExtraData encodes the extraData for piecesScheduledRemove callback
