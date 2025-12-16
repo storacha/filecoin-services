@@ -6,10 +6,16 @@
 # Assumption: called from contracts directory so forge paths work out
 #
 
+# Get script directory and source deployments.sh
+SCRIPT_DIR="$(dirname "${BASH_SOURCE[0]}")"
+source "$SCRIPT_DIR/deployments.sh"
+
 echo "Deploying Warm Storage Service Contract"
 
 export CHAIN=314159
 
+# Load deployment addresses from deployments.json
+load_deployment_addresses "$CHAIN"
 
 if [ -z "$ETH_RPC_URL" ]; then
   echo "Error: ETH_RPC_URL is not set"
@@ -145,18 +151,18 @@ NONCE=$(expr $NONCE + "1")
 echo "Deploying FilecoinWarmStorageService proxy..."
 # Initialize with max proving period, challenge window size, FilBeam controller address, name, and description
 INIT_DATA=$(cast calldata "initialize(uint64,uint256,address,string,string)" $MAX_PROVING_PERIOD $CHALLENGE_WINDOW_SIZE $FILBEAM_CONTROLLER_ADDRESS "$SERVICE_NAME" "$SERVICE_DESCRIPTION")
-WARM_STORAGE_SERVICE_ADDRESS=$(forge create --password "$PASSWORD" --broadcast --nonce $NONCE lib/pdp/src/ERC1967Proxy.sol:MyERC1967Proxy --constructor-args $SERVICE_PAYMENTS_IMPLEMENTATION_ADDRESS $INIT_DATA | grep "Deployed to" | awk '{print $3}')
-if [ -z "$WARM_STORAGE_SERVICE_ADDRESS" ]; then
+WARM_STORAGE_PROXY_ADDRESS=$(forge create --password "$PASSWORD" --broadcast --nonce $NONCE lib/pdp/src/ERC1967Proxy.sol:MyERC1967Proxy --constructor-args $SERVICE_PAYMENTS_IMPLEMENTATION_ADDRESS $INIT_DATA | grep "Deployed to" | awk '{print $3}')
+if [ -z "$WARM_STORAGE_PROXY_ADDRESS" ]; then
   echo "Error: Failed to extract FilecoinWarmStorageService proxy address"
   exit 1
 fi
-echo "FilecoinWarmStorageService proxy deployed at: $WARM_STORAGE_SERVICE_ADDRESS"
+echo "FilecoinWarmStorageService proxy deployed at: $WARM_STORAGE_PROXY_ADDRESS"
 
 # Summary of deployed contracts
 echo
 echo "# DEPLOYMENT SUMMARY"
 echo "FilecoinWarmStorageService Implementation: $SERVICE_PAYMENTS_IMPLEMENTATION_ADDRESS"
-echo "FilecoinWarmStorageService Proxy: $WARM_STORAGE_SERVICE_ADDRESS"
+echo "FilecoinWarmStorageService Proxy: $WARM_STORAGE_PROXY_ADDRESS"
 echo
 echo "USDFC token address: $USDFC_TOKEN_ADDRESS"
 echo "PDPVerifier address: $PDP_VERIFIER_PROXY_ADDRESS"
@@ -168,6 +174,20 @@ echo "Max proving period: $MAX_PROVING_PERIOD epochs"
 echo "Challenge window size: $CHALLENGE_WINDOW_SIZE epochs"
 echo "Service name: $SERVICE_NAME"
 echo "Service description: $SERVICE_DESCRIPTION"
+
+# Update deployments.json
+if [ -n "$SERVICE_PAYMENTS_IMPLEMENTATION_ADDRESS" ]; then
+    update_deployment_address "$CHAIN" "FWS_IMPLEMENTATION_ADDRESS" "$SERVICE_PAYMENTS_IMPLEMENTATION_ADDRESS"
+fi
+if [ -n "$WARM_STORAGE_PROXY_ADDRESS" ]; then
+    update_deployment_address "$CHAIN" "WARM_STORAGE_PROXY_ADDRESS" "$WARM_STORAGE_PROXY_ADDRESS"
+fi
+if [ -n "$SIGNATURE_VERIFICATION_LIB_ADDRESS" ]; then
+    update_deployment_address "$CHAIN" "SIGNATURE_VERIFICATION_LIB_ADDRESS" "$SIGNATURE_VERIFICATION_LIB_ADDRESS"
+fi
+if [ -n "$SERVICE_PAYMENTS_IMPLEMENTATION_ADDRESS" ] || [ -n "$WARM_STORAGE_PROXY_ADDRESS" ]; then
+    update_deployment_metadata "$CHAIN"
+fi
 
 # Automatic contract verification
 if [ "${AUTO_VERIFY:-true}" = "true" ]; then

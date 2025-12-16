@@ -5,6 +5,10 @@
 # Optional args: NEW_WARM_STORAGE_VIEW_ADDRESS
 # Calculated if unset: CHAIN, WARM_STORAGE_VIEW_ADDRESS
 
+# Get script directory and source deployments.sh
+SCRIPT_DIR="$(dirname "${BASH_SOURCE[0]}")"
+source "$SCRIPT_DIR/deployments.sh"
+
 if [ -z "$NEW_WARM_STORAGE_VIEW_ADDRESS" ]; then
   echo "Warning: NEW_WARM_STORAGE_VIEW_ADDRESS is not set. Keeping previous view contract." 
 fi
@@ -31,6 +35,9 @@ if [ -z "$CHAIN" ]; then
     exit 1
   fi
 fi
+
+# Load deployment addresses from deployments.json
+load_deployment_addresses "$CHAIN"
 
 ADDR=$(cast wallet address --password "$PASSWORD")
 echo "Using owner address: $ADDR"
@@ -114,6 +121,15 @@ export EXPECTED_IMPL=$(echo $NEW_WARM_STORAGE_IMPLEMENTATION_ADDRESS | tr '[:upp
 
 if [ "$NEW_IMPL" = "$EXPECTED_IMPL" ]; then
     echo "✅ Upgrade successful! Proxy now points to: $NEW_WARM_STORAGE_IMPLEMENTATION_ADDRESS"
+    
+    # Update deployments.json with new implementation address
+    if [ -n "$NEW_WARM_STORAGE_IMPLEMENTATION_ADDRESS" ]; then
+        update_deployment_address "$CHAIN" "FWS_IMPLEMENTATION_ADDRESS" "$NEW_WARM_STORAGE_IMPLEMENTATION_ADDRESS"
+    fi
+    if [ -n "$NEW_WARM_STORAGE_VIEW_ADDRESS" ]; then
+        update_deployment_address "$CHAIN" "WARM_STORAGE_VIEW_ADDRESS" "$NEW_WARM_STORAGE_VIEW_ADDRESS"
+    fi
+    update_deployment_metadata "$CHAIN"
 else
     echo "⚠️  Warning: Could not verify upgrade. Please check manually."
     echo "Expected: $NEW_WARM_STORAGE_IMPLEMENTATION_ADDRESS"
