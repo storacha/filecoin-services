@@ -49,6 +49,62 @@ The following parameters are critical for proof generation and validation. They 
   DEFAULT_CHALLENGE_WINDOW_SIZE="20"     # 20 epochs
   ```
 
+## Deployment Address Management
+
+Deployment scripts automatically load and update contract addresses in `deployments.json`, keyed by chain ID. This makes deployments easier and reduces mistakes when updating addresses downstream.
+
+### deployments.json Structure
+
+The `deployments.json` file stores deployment addresses organized by chain ID:
+
+```json
+{
+  "314": {
+    "PDP_VERIFIER_PROXY_ADDRESS": "0x...",
+    "FILECOIN_PAY_ADDRESS": "0x...",
+    "FWSS_PROXY_ADDRESS": "0x...",
+    "metadata": {
+      "commit": "abc123...",
+      "deployed_at": "2024-01-01T00:00:00Z"
+    }
+  },
+  "314159": {
+    ...
+  }
+}
+```
+
+### How It Works
+
+1. **Loading addresses**: Scripts automatically load addresses from `deployments.json` for the detected chain ID. If an address doesn't exist in the JSON, the script will use environment variables or fail if required.
+
+2. **Updating addresses**: When a script deploys a new contract, it automatically updates `deployments.json` with the new address.
+
+3. **Environment variable override**: Environment variables take precedence over values loaded from JSON, allowing you to override specific addresses when needed.
+
+4. **Metadata tracking**: The system automatically tracks the git commit hash and deployment timestamp for each chain.
+
+### Control Flags
+
+- `SKIP_LOAD_DEPLOYMENTS=true` - Skip loading addresses from JSON (use only environment variables)
+- `SKIP_UPDATE_DEPLOYMENTS=true` - Skip updating JSON after deployment
+
+### Querying Addresses
+
+You can query addresses using `jq`:
+
+```bash
+# Get all addresses for a chain
+jq '.["314"]' deployments.json
+
+# Get a specific address
+jq -r '.["314"].FWSS_PROXY_ADDRESS' deployments.json
+```
+
+### Version Control
+
+The `deployments.json` file should be committed to version control. Updates to it should be tagged as version releases.
+
 ## Environment Variables
 
 ### Required for all scripts:
@@ -62,7 +118,7 @@ These scripts now follow forge/cast's environment variable conventions. Set the 
 - `deploy-warm-storage-calibnet.sh` requires:
 
   - `PDP_VERIFIER_PROXY_ADDRESS` - Address of deployed PDPVerifier contract
-  - `PAYMENTS_CONTRACT_ADDRESS` - Address of deployed FilecoinPayV1 contract
+  - `FILECOIN_PAY_ADDRESS` - Address of deployed FilecoinPayV1 contract
 
 
 - `deploy-all-warm-storage.sh` requires:
@@ -96,8 +152,8 @@ export CHALLENGE_WINDOW_SIZE="20"      # 20 epochs for calibnet, 60 for mainnet
 export ETH_KEYSTORE="/path/to/keystore.json"
 export PASSWORD="your-password"
 export ETH_RPC_URL="https://api.calibration.node.glif.io/rpc/v1"
-export PDP_VERIFIER_ADDRESS="0x123..."
-export PAYMENTS_CONTRACT_ADDRESS="0x456..."
+export PDP_VERIFIER_PROXY_ADDRESS="0x123..."
+export FILECOIN_PAY_ADDRESS="0x456..."
 
 ./deploy-warm-storage-calibnet.sh
 ```
