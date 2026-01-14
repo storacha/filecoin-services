@@ -6,9 +6,16 @@
 # Assumption: called from contracts directory so forge paths work out
 #
 
+# Get script directory and source deployments.sh
+SCRIPT_DIR="$(dirname "${BASH_SOURCE[0]}")"
+source "$SCRIPT_DIR/deployments.sh"
+
 echo "Deploying Service Provider Registry Contract"
 
 export CHAIN=314159
+
+# Load deployment addresses from deployments.json
+load_deployment_addresses "$CHAIN"
 
 if [ -z "$ETH_RPC_URL" ]; then
   echo "Error: ETH_RPC_URL is not set"
@@ -38,12 +45,12 @@ echo "Starting nonce: $NONCE"
 # Deploy ServiceProviderRegistry implementation
 echo ""
 echo "=== STEP 1: Deploying ServiceProviderRegistry Implementation ==="
-REGISTRY_IMPLEMENTATION_ADDRESS=$(forge create --password "$PASSWORD" --broadcast --nonce $NONCE src/ServiceProviderRegistry.sol:ServiceProviderRegistry --optimizer-runs 1 --via-ir | grep "Deployed to" | awk '{print $3}')
-if [ -z "$REGISTRY_IMPLEMENTATION_ADDRESS" ]; then
+SERVICE_PROVIDER_REGISTRY_IMPLEMENTATION_ADDRESS=$(forge create --password "$PASSWORD" --broadcast --nonce $NONCE src/ServiceProviderRegistry.sol:ServiceProviderRegistry --optimizer-runs 1 --via-ir | grep "Deployed to" | awk '{print $3}')
+if [ -z "$SERVICE_PROVIDER_REGISTRY_IMPLEMENTATION_ADDRESS" ]; then
   echo "Error: Failed to extract ServiceProviderRegistry implementation address"
   exit 1
 fi
-echo "✓ ServiceProviderRegistry implementation deployed at: $REGISTRY_IMPLEMENTATION_ADDRESS"
+echo "✓ ServiceProviderRegistry implementation deployed at: $SERVICE_PROVIDER_REGISTRY_IMPLEMENTATION_ADDRESS"
 NONCE=$(expr $NONCE + "1")
 
 # Deploy ServiceProviderRegistry proxy
@@ -53,7 +60,7 @@ echo "=== STEP 2: Deploying ServiceProviderRegistry Proxy ==="
 INIT_DATA=$(cast calldata "initialize()")
 echo "Initialization calldata: $INIT_DATA"
 
-REGISTRY_PROXY_ADDRESS=$(forge create --password "$PASSWORD" --broadcast --nonce $NONCE lib/pdp/src/ERC1967Proxy.sol:MyERC1967Proxy --constructor-args $REGISTRY_IMPLEMENTATION_ADDRESS $INIT_DATA --optimizer-runs 1 --via-ir | grep "Deployed to" | awk '{print $3}')
+REGISTRY_PROXY_ADDRESS=$(forge create --password "$PASSWORD" --broadcast --nonce $NONCE lib/pdp/src/ERC1967Proxy.sol:MyERC1967Proxy --constructor-args $SERVICE_PROVIDER_REGISTRY_IMPLEMENTATION_ADDRESS $INIT_DATA --optimizer-runs 1 --via-ir | grep "Deployed to" | awk '{print $3}')
 if [ -z "$REGISTRY_PROXY_ADDRESS" ]; then
   echo "Error: Failed to extract ServiceProviderRegistry proxy address"
   exit 1
@@ -107,9 +114,20 @@ echo ""
 echo "=========================================="
 echo "=== DEPLOYMENT SUMMARY ==="
 echo "=========================================="
-echo "ServiceProviderRegistry Implementation: $REGISTRY_IMPLEMENTATION_ADDRESS"
+echo "ServiceProviderRegistry Implementation: $SERVICE_PROVIDER_REGISTRY_IMPLEMENTATION_ADDRESS"
 echo "ServiceProviderRegistry Proxy: $REGISTRY_PROXY_ADDRESS"
 echo "=========================================="
+
+# Update deployments.json
+if [ -n "$SERVICE_PROVIDER_REGISTRY_IMPLEMENTATION_ADDRESS" ]; then
+    update_deployment_address "$CHAIN" "SERVICE_PROVIDER_REGISTRY_IMPLEMENTATION_ADDRESS" "$SERVICE_PROVIDER_REGISTRY_IMPLEMENTATION_ADDRESS"
+fi
+if [ -n "$REGISTRY_PROXY_ADDRESS" ]; then
+    update_deployment_address "$CHAIN" "SERVICE_PROVIDER_REGISTRY_PROXY_ADDRESS" "$REGISTRY_PROXY_ADDRESS"
+fi
+if [ -n "$SERVICE_PROVIDER_REGISTRY_IMPLEMENTATION_ADDRESS" ] || [ -n "$REGISTRY_PROXY_ADDRESS" ]; then
+    update_deployment_metadata "$CHAIN"
+fi
 echo ""
 echo "Contract Details:"
 echo "  - Version: $CONTRACT_VERSION"
@@ -139,7 +157,7 @@ if [ "${AUTO_VERIFY:-true}" = "true" ]; then
 
   pushd "$(dirname $0)/.." >/dev/null
   source tools/verify-contracts.sh
-  verify_contracts_batch "$REGISTRY_IMPLEMENTATION_ADDRESS,src/ServiceProviderRegistry.sol:ServiceProviderRegistry"
+  verify_contracts_batch "$SERVICE_PROVIDER_REGISTRY_IMPLEMENTATION_ADDRESS,src/ServiceProviderRegistry.sol:ServiceProviderRegistry"
   popd >/dev/null
 else
   echo

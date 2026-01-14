@@ -24,6 +24,9 @@ fi
 # in the same directory, regardless of where this script is executed from
 SCRIPT_DIR="$(dirname "${BASH_SOURCE[0]}")"
 
+# Source the shared deployments script
+source "$SCRIPT_DIR/deployments.sh"
+
 echo "Deploying all Warm Storage contracts"
 
 if [ -z "$ETH_RPC_URL" ]; then
@@ -73,6 +76,9 @@ case "$CHAIN" in
 esac
 
 echo "Detected Chain ID: $CHAIN ($NETWORK_NAME)"
+
+# Load deployment addresses from deployments.json
+load_deployment_addresses "$CHAIN"
 
 if [ "$DRY_RUN" != "true" ] && [ -z "$ETH_KEYSTORE" ]; then
   echo "Error: ETH_KEYSTORE is not set (required for actual deployment)"
@@ -194,6 +200,11 @@ deploy_implementation_if_needed() {
 
         eval "$var_name='$address'"
         echo "  ✅ Deployed at: ${!var_name}"
+        
+        # Update deployments.json if this is an actual deployment
+        if [ "$DRY_RUN" != "true" ]; then
+            update_deployment_address "$CHAIN" "$var_name" "${!var_name}"
+        fi
     fi
 
     NONCE=$(expr $NONCE + "1")
@@ -237,6 +248,11 @@ deploy_proxy_if_needed() {
 
         eval "$var_name='$address'"
         echo "  ✅ Deployed at: ${!var_name}"
+        
+        # Update deployments.json if this is an actual deployment
+        if [ "$DRY_RUN" != "true" ]; then
+            update_deployment_address "$CHAIN" "$var_name" "${!var_name}"
+        fi
     fi
 
     NONCE=$(expr $NONCE + "1")
@@ -262,6 +278,11 @@ deploy_session_key_registry_if_needed() {
         source "$SCRIPT_DIR/deploy-session-key-registry.sh"
         NONCE=$(expr $NONCE + "1")
         echo "  ✅ Deployed at: $SESSION_KEY_REGISTRY_ADDRESS"
+        
+        # Update deployments.json
+        if [ -n "$SESSION_KEY_REGISTRY_ADDRESS" ]; then
+            update_deployment_address "$CHAIN" "SESSION_KEY_REGISTRY_ADDRESS" "$SESSION_KEY_REGISTRY_ADDRESS"
+        fi
     fi
     echo
 }
@@ -344,27 +365,27 @@ deploy_session_key_registry_if_needed
 
 # Step 1: Deploy or use existing PDPVerifier implementation
 deploy_implementation_if_needed \
-    "VERIFIER_IMPLEMENTATION_ADDRESS" \
+    "PDP_VERIFIER_IMPLEMENTATION_ADDRESS" \
     "lib/pdp/src/PDPVerifier.sol:PDPVerifier" \
     "PDPVerifier implementation"
 
 # Step 2: Deploy or use existing PDPVerifier proxy
 INIT_DATA=$(cast calldata "initialize(uint256)" $CHALLENGE_FINALITY)
 deploy_proxy_if_needed \
-    "PDP_VERIFIER_ADDRESS" \
-    "$VERIFIER_IMPLEMENTATION_ADDRESS" \
+    "PDP_VERIFIER_PROXY_ADDRESS" \
+    "$PDP_VERIFIER_IMPLEMENTATION_ADDRESS" \
     "$INIT_DATA" \
     "PDPVerifier proxy"
 
 # Step 3: Deploy or use existing FilecoinPayV1 contract
 deploy_implementation_if_needed \
-    "PAYMENTS_CONTRACT_ADDRESS" \
+    "FILECOIN_PAY_ADDRESS" \
     "lib/fws-payments/src/FilecoinPayV1.sol:FilecoinPayV1" \
     "FilecoinPayV1"
 
 # Step 4: Deploy or use existing ServiceProviderRegistry implementation
 deploy_implementation_if_needed \
-    "REGISTRY_IMPLEMENTATION_ADDRESS" \
+    "SERVICE_PROVIDER_REGISTRY_IMPLEMENTATION_ADDRESS" \
     "src/ServiceProviderRegistry.sol:ServiceProviderRegistry" \
     "ServiceProviderRegistry implementation"
 
@@ -372,7 +393,7 @@ deploy_implementation_if_needed \
 REGISTRY_INIT_DATA=$(cast calldata "initialize()")
 deploy_proxy_if_needed \
     "SERVICE_PROVIDER_REGISTRY_PROXY_ADDRESS" \
-    "$REGISTRY_IMPLEMENTATION_ADDRESS" \
+    "$SERVICE_PROVIDER_REGISTRY_IMPLEMENTATION_ADDRESS" \
     "$REGISTRY_INIT_DATA" \
     "ServiceProviderRegistry proxy"
 
@@ -386,11 +407,11 @@ deploy_implementation_if_needed \
 # Set LIBRARIES variable for the deployment helper (format: path:name:address)
 LIBRARIES="src/lib/SignatureVerificationLib.sol:SignatureVerificationLib:$SIGNATURE_VERIFICATION_LIB_ADDRESS"
 deploy_implementation_if_needed \
-    "FWS_IMPLEMENTATION_ADDRESS" \
+    "FWSS_IMPLEMENTATION_ADDRESS" \
     "src/FilecoinWarmStorageService.sol:FilecoinWarmStorageService" \
     "FilecoinWarmStorageService implementation" \
-    "$PDP_VERIFIER_ADDRESS" \
-    "$PAYMENTS_CONTRACT_ADDRESS" \
+    "$PDP_VERIFIER_PROXY_ADDRESS" \
+    "$FILECOIN_PAY_ADDRESS" \
     "$USDFC_TOKEN_ADDRESS" \
     "$FILBEAM_BENEFICIARY_ADDRESS" \
     "$SERVICE_PROVIDER_REGISTRY_PROXY_ADDRESS" \
@@ -401,8 +422,8 @@ unset LIBRARIES
 # Initialize with max proving period, challenge window size, FilBeam controller address, name, and description
 INIT_DATA=$(cast calldata "initialize(uint64,uint256,address,string,string)" $MAX_PROVING_PERIOD $CHALLENGE_WINDOW_SIZE $FILBEAM_CONTROLLER_ADDRESS "$SERVICE_NAME" "$SERVICE_DESCRIPTION")
 deploy_proxy_if_needed \
-    "WARM_STORAGE_SERVICE_ADDRESS" \
-    "$FWS_IMPLEMENTATION_ADDRESS" \
+    "FWSS_PROXY_ADDRESS" \
+    "$FWSS_IMPLEMENTATION_ADDRESS" \
     "$INIT_DATA" \
     "FilecoinWarmStorageService proxy"
 
@@ -410,12 +431,17 @@ deploy_proxy_if_needed \
 echo -e "${BOLD}FilecoinWarmStorageServiceStateView${RESET}"
 if [ "$DRY_RUN" = "true" ]; then
     echo "  🔍 Would deploy (skipping in dry-run)"
-    WARM_STORAGE_VIEW_ADDRESS="0x8901234567890123456789012345678901234567"  # Dummy address for dry-run
-    echo "  ✅ Deployment planned (dummy: $WARM_STORAGE_VIEW_ADDRESS)"
+    FWSS_VIEW_ADDRESS="0x8901234567890123456789012345678901234567"  # Dummy address for dry-run
+    echo "  ✅ Deployment planned (dummy: $FWSS_VIEW_ADDRESS)"
 else
     echo "  🔧 Using external deployment script..."
     source "$SCRIPT_DIR/deploy-warm-storage-view.sh"
-    echo "  ✅ Deployed at: $WARM_STORAGE_VIEW_ADDRESS"
+    echo "  ✅ Deployed at: $FWSS_VIEW_ADDRESS"
+    
+    # Update deployments.json
+    if [ -n "$FWSS_VIEW_ADDRESS" ]; then
+        update_deployment_address "$CHAIN" "FWSS_VIEW_ADDRESS" "$FWSS_VIEW_ADDRESS"
+    fi
 fi
 echo
 
@@ -446,14 +472,14 @@ else
     echo "# DEPLOYMENT SUMMARY ($NETWORK_NAME)"
 fi
 
-echo "PDPVerifier Implementation: $VERIFIER_IMPLEMENTATION_ADDRESS"
-echo "PDPVerifier Proxy: $PDP_VERIFIER_ADDRESS"
-echo "FilecoinPayV1 Contract: $PAYMENTS_CONTRACT_ADDRESS"
-echo "ServiceProviderRegistry Implementation: $REGISTRY_IMPLEMENTATION_ADDRESS"
+echo "PDPVerifier Implementation: $PDP_VERIFIER_IMPLEMENTATION_ADDRESS"
+echo "PDPVerifier Proxy: $PDP_VERIFIER_PROXY_ADDRESS"
+echo "FilecoinPayV1 Contract: $FILECOIN_PAY_ADDRESS"
+echo "ServiceProviderRegistry Implementation: $SERVICE_PROVIDER_REGISTRY_IMPLEMENTATION_ADDRESS"
 echo "ServiceProviderRegistry Proxy: $SERVICE_PROVIDER_REGISTRY_PROXY_ADDRESS"
-echo "FilecoinWarmStorageService Implementation: $FWS_IMPLEMENTATION_ADDRESS"
-echo "FilecoinWarmStorageService Proxy: $WARM_STORAGE_SERVICE_ADDRESS"
-echo "FilecoinWarmStorageServiceStateView: $WARM_STORAGE_VIEW_ADDRESS"
+echo "FilecoinWarmStorageService Implementation: $FWSS_IMPLEMENTATION_ADDRESS"
+echo "FilecoinWarmStorageService Proxy: $FWSS_PROXY_ADDRESS"
+echo "FilecoinWarmStorageServiceStateView: $FWSS_VIEW_ADDRESS"
 echo
 echo "Network Configuration ($NETWORK_NAME):"
 echo "Challenge finality: $CHALLENGE_FINALITY epochs"
@@ -474,14 +500,21 @@ if [ "$DRY_RUN" = "false" ] && [ "${AUTO_VERIFY:-true}" = "true" ]; then
     source tools/verify-contracts.sh
     
     verify_contracts_batch \
-        "$VERIFIER_IMPLEMENTATION_ADDRESS,lib/pdp/src/PDPVerifier.sol:PDPVerifier" \
-        "$PDP_VERIFIER_ADDRESS,lib/pdp/src/ERC1967Proxy.sol:MyERC1967Proxy" \
-        "$PAYMENTS_CONTRACT_ADDRESS,lib/fws-payments/src/FilecoinPayV1.sol:FilecoinPayV1" \
-        "$REGISTRY_IMPLEMENTATION_ADDRESS,src/ServiceProviderRegistry.sol:ServiceProviderRegistry" \
+        "$PDP_VERIFIER_IMPLEMENTATION_ADDRESS,lib/pdp/src/PDPVerifier.sol:PDPVerifier" \
+        "$PDP_VERIFIER_PROXY_ADDRESS,lib/pdp/src/ERC1967Proxy.sol:MyERC1967Proxy" \
+        "$FILECOIN_PAY_ADDRESS,lib/fws-payments/src/FilecoinPayV1.sol:FilecoinPayV1" \
+        "$SERVICE_PROVIDER_REGISTRY_IMPLEMENTATION_ADDRESS,src/ServiceProviderRegistry.sol:ServiceProviderRegistry" \
         "$SERVICE_PROVIDER_REGISTRY_PROXY_ADDRESS,lib/openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Proxy.sol:ERC1967Proxy" \
-        "$FWS_IMPLEMENTATION_ADDRESS,src/FilecoinWarmStorageService.sol:FilecoinWarmStorageService" \
-        "$WARM_STORAGE_SERVICE_ADDRESS,lib/openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Proxy.sol:ERC1967Proxy" \
-        "$WARM_STORAGE_VIEW_ADDRESS,src/FilecoinWarmStorageServiceStateView.sol:FilecoinWarmStorageServiceStateView"
+        "$FWSS_IMPLEMENTATION_ADDRESS,src/FilecoinWarmStorageService.sol:FilecoinWarmStorageService" \
+        "$FWSS_PROXY_ADDRESS,lib/openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Proxy.sol:ERC1967Proxy" \
+        "$FWSS_VIEW_ADDRESS,src/FilecoinWarmStorageServiceStateView.sol:FilecoinWarmStorageServiceStateView"
     
     popd >/dev/null
+fi
+
+# Update deployment metadata if this was an actual deployment
+if [ "$DRY_RUN" != "true" ]; then
+    echo
+    echo "📝 Updating deployment metadata..."
+    update_deployment_metadata "$CHAIN"
 fi
