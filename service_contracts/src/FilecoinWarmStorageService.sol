@@ -1077,8 +1077,10 @@ contract FilecoinWarmStorageService is
         payments.terminateRail(info.pdpRailId);
 
         if (deleteCDNMetadataKey(dataSetMetadataKeys[dataSetId])) {
-            payments.terminateRail(info.cacheMissRailId);
-            payments.terminateRail(info.cdnRailId);
+            // CDN rails can be terminated externally via FilecoinPay. Ignore errors from
+            // already-terminated or finalized rails.
+            try payments.terminateRail(info.cacheMissRailId) {} catch {}
+            try payments.terminateRail(info.cdnRailId) {} catch {}
 
             // Delete withCDN flag from metadata to prevent further CDN operations
             delete dataSetMetadata[dataSetId][METADATA_KEY_WITH_CDN];
@@ -1172,8 +1174,13 @@ contract FilecoinWarmStorageService is
         require(info.cacheMissRailId != 0, Errors.InvalidDataSetId(dataSetId));
         require(info.cdnRailId != 0, Errors.InvalidDataSetId(dataSetId));
         FilecoinPayV1 payments = FilecoinPayV1(paymentsContractAddress);
-        payments.terminateRail(info.cacheMissRailId);
-        payments.terminateRail(info.cdnRailId);
+
+        // ⚠️ WARNING: Catch-all error handling will silently suppress ALL errors from terminateRail(),
+        // not just "already terminated/finalized" errors. This could mask legitimate failures.
+        // Ideally we would catch only specific error types, but contract size constraint prevents
+        // us from implementing error handling.
+        try payments.terminateRail(info.cacheMissRailId) {} catch {}
+        try payments.terminateRail(info.cdnRailId) {} catch {}
 
         // Delete withCDN flag from metadata to prevent further CDN operations
         delete dataSetMetadata[dataSetId][METADATA_KEY_WITH_CDN];
