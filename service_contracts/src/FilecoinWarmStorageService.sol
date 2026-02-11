@@ -1684,30 +1684,22 @@ contract FilecoinWarmStorageService is
     /// payment, allowing the rail to eventually be fully settled and finalised even if the
     /// provider missed proofs.
     ///
-    /// The range (fromEpoch, toEpoch] may span part of a period, a full period, or
-    /// multiple periods. The function splits this into up to three regions:
+    /// Iterates through each proving period that overlaps the range (fromEpoch, toEpoch].
+    /// Partial periods at the start and end are handled by clamping each period's contribution
+    /// to [max(periodStart, fromEpoch), min(toEpoch, deadline)].
     ///
-    ///   1. First period (may be partial): fromEpoch may be mid-period (assume that prior epochs
-    ///      are already settled, likely due to a rail rate change, see below).
-    ///   2. Middle period: each contributes exactly maxProvingPeriod epochs, i.e. they are all
-    ///      fully proven or fully faulted.
-    ///   3. Last period: toEpoch may be mid-period.
-    ///
-    /// If the entire range falls within one period, only the first-period branch executes.
-    ///
-    /// For each period boundary, one of three rules applies:
+    /// For each period, one of three rules applies:
     ///
     ///   Proven:  Period has a valid proof. Count epochs toward payment, advance settleUpTo.
     ///   Faulted: Deadline has passed with no proof. Advance settleUpTo (zero payment).
-    ///            The provider can never prove this period, so blocking would be permanent.
-    ///   Open:    Deadline has not yet passed. Block settlement at the period boundary.
-    ///            The provider may still submit a proof before the deadline.
+    ///   Open:    Deadline has not yet passed. Don't update settleUpTo, blocking settlement
+    ///            at wherever the previous period left it. Note: only the last period in
+    ///            the range can be open (toEpoch <= block.number guarantees earlier deadlines
+    ///            have passed).
     ///
-    /// Why partial-period requests exist:
-    ///   FilecoinPay calls validatePayment() once per rate segment when processing
-    ///   rate changes (see _settleWithRateChanges in FilecoinPay). If the rate changed
-    ///   mid-period (e.g. pieces were added), toEpoch will fall within a period rather
-    ///   than on a boundary.
+    /// Partial-period requests arise when FilecoinPay settles each rate segment independently
+    /// (see _settleWithRateChanges). If the rate changed mid-period (e.g. pieces were added),
+    /// toEpoch will fall within a period rather than on a boundary.
     function _findProvenEpochs(uint256 dataSetId, uint256 fromEpoch, uint256 toEpoch, uint256 activationEpoch)
         internal
         view
@@ -1717,57 +1709,21 @@ contract FilecoinWarmStorageService is
         if (fromEpoch < activationEpoch) {
             fromEpoch = activationEpoch;
         }
-
+        settleUpTo = fromEpoch;
         uint256 startingPeriod = _provingPeriodForEpoch(activationEpoch, fromEpoch + 1);
-        uint256 startingPeriodDeadline = _calcPeriodDeadline(activationEpoch, startingPeriod);
-
-        // --- SINGLE-PERIOD PATH ---
-        // The entire range falls within the starting period (including the deadline itself,
-        // which is the last epoch of the period in the exclusive-inclusive convention).
-        if (toEpoch <= startingPeriodDeadline) {
-            if (_isPeriodProven(dataSetId, startingPeriod)) {
-                // Proven: pay for all requested epochs
-                provenEpochCount = toEpoch - fromEpoch;
-                settleUpTo = toEpoch;
-            } else if (block.number <= startingPeriodDeadline) {
-                // Open: deadline hasn't passed, proof may still arrive, block settlement
-                settleUpTo = fromEpoch;
-            } else {
+        uint256 endingPeriod = _provingPeriodForEpoch(activationEpoch, toEpoch);
+        for (uint256 period = startingPeriod; period <= endingPeriod; period++) {
+            uint256 deadline = _calcPeriodDeadline(activationEpoch, period);
+            if (_isPeriodProven(dataSetId, period)) {
+                uint256 settleStart = max(deadline - maxProvingPeriod, fromEpoch);
+                settleUpTo = min(toEpoch, deadline);
+                provenEpochCount += settleUpTo - settleStart;
+            } else if (deadline < block.number) {
                 // Faulted: deadline passed, no proof, advance with zero payment
-                settleUpTo = toEpoch;
-            }
-        } else {
-            // --- MULTI-PERIOD PATH ---
-            // Range spans at least one period boundary.
-
-            // First period: count from fromEpoch to the period deadline
-            if (_isPeriodProven(dataSetId, startingPeriod)) {
-                provenEpochCount += (startingPeriodDeadline - fromEpoch);
-            }
-            // else: if unproven, first period contributes zero, but don't block
-
-            // Middle periods: each is a full maxProvingPeriod to potentially contribute
-            uint256 endingPeriod = _provingPeriodForEpoch(activationEpoch, toEpoch);
-            for (uint256 period = startingPeriod + 1; period < endingPeriod; period++) {
-                if (_isPeriodProven(dataSetId, period)) {
-                    provenEpochCount += maxProvingPeriod;
-                }
-            }
-
-            // Last period: partial, from period start to toEpoch
-            uint256 endingPeriodDeadline = _calcPeriodDeadline(activationEpoch, endingPeriod);
-            settleUpTo = endingPeriodDeadline - maxProvingPeriod; // start of last period
-
-            if (_isPeriodProven(dataSetId, endingPeriod)) {
-                // Proven: pay for epochs in this partial period, advance to toEpoch
-                provenEpochCount += (toEpoch - settleUpTo);
-                settleUpTo = toEpoch;
-            } else if (endingPeriodDeadline < block.number) {
-                // Faulted: deadline passed, no proof, advance with zero payment
-                settleUpTo = toEpoch;
-            }
-            // else: Open: settlement stops at the start of this period
+                settleUpTo = min(toEpoch, deadline);
+            } //else { } // Open: deadline hasn't passed, proof may still arrive, block settlement
         }
+
         return (provenEpochCount, settleUpTo);
     }
 
