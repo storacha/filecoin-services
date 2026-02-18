@@ -2,6 +2,7 @@
 pragma solidity ^0.8.20;
 
 import {PDPListener} from "@pdp/PDPVerifier.sol";
+import {IPDPVerifier} from "@pdp/interfaces/IPDPVerifier.sol";
 import {Cids} from "@pdp/Cids.sol";
 import {SessionKeyRegistry} from "@session-key-registry/SessionKeyRegistry.sol";
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
@@ -297,6 +298,9 @@ contract FilecoinWarmStorageService is
     // Pricing rates (mutable for future adjustments)
     uint256 private storagePricePerTibPerMonth;
     uint256 private minimumStorageRatePerMonth;
+
+    // Piece IDs awaiting metadata cleanup; cleared each nextProvingPeriod call
+    mapping(uint256 dataSetId => uint256[] pieceIds) internal scheduledPieceMetadataRemovals;
 
     event UpgradeAnnounced(PlannedUpgrade plannedUpgrade);
 
@@ -756,6 +760,20 @@ contract FilecoinWarmStorageService is
             Errors.PaymentRailsNotFinalized(dataSetId, info.pdpEndEpoch)
         );
 
+        // Check if the rail is fully settled before allowing deletion.
+        // This ensures validatePayment() can still read dataset state during settlement.
+        // If deleted before settlement, clients would be forced to use
+        // settleTerminatedRailWithoutValidation() which pays full amount for unproven epochs.
+        FilecoinPayV1 payments = FilecoinPayV1(paymentsContractAddress);
+        try payments.getRail(info.pdpRailId) returns (FilecoinPayV1.RailView memory rail) {
+            require(
+                rail.settledUpTo >= rail.endEpoch,
+                Errors.RailNotFullySettled(info.pdpRailId, rail.settledUpTo, rail.endEpoch)
+            );
+        } catch {
+            // Rail is finalized (zeroed out), meaning it was already fully settled
+        }
+
         // NOTE keep clientNonces[payer][clientDataSetId] to prevent replay
 
         // Remove from client's dataset list
@@ -834,6 +852,10 @@ contract FilecoinWarmStorageService is
         // Verify the signature
         verifyAddPiecesSignature(payer, info.clientDataSetId, pieceData, nonce, metadataKeys, metadataValues, signature);
 
+        // Validate lockup for the new data set size (fail-fast if client has insufficient funds)
+        uint256 currentLeafCount = IPDPVerifier(pdpVerifierAddress).getDataSetLeafCount(dataSetId);
+        updatePaymentRates(dataSetId, currentLeafCount);
+
         // Store metadata for each new piece
         for (uint256 i = 0; i < pieceData.length; i++) {
             uint256 pieceId = firstAdded + i;
@@ -897,7 +919,11 @@ contract FilecoinWarmStorageService is
         // Verify the signature
         verifySchedulePieceRemovalsSignature(payer, info.clientDataSetId, pieceIds, signature);
 
-        // Additional logic for scheduling removals can be added here
+        // Queue piece IDs for metadata cleanup at nextProvingPeriod
+        uint256[] storage scheduled = scheduledPieceMetadataRemovals[dataSetId];
+        for (uint256 i = 0; i < pieceIds.length; i++) {
+            scheduled.push(pieceIds[i]);
+        }
     }
 
     // possession proven checks for correct challenge count and reverts if too low
@@ -963,8 +989,10 @@ contract FilecoinWarmStorageService is
             // This marks when the data set became active for proving
             provingActivationEpoch[dataSetId] = block.number;
 
-            // Update the payment rates
-            updatePaymentRates(dataSetId, leafCount);
+            // Rate was already set in piecesAdded; only update if pieces were removed
+            if (processScheduledPieceMetadataRemovals(dataSetId)) {
+                updatePaymentRates(dataSetId, leafCount);
+            }
 
             return;
         }
@@ -1010,8 +1038,10 @@ contract FilecoinWarmStorageService is
         provingDeadlines[dataSetId] = nextDeadline;
         provenThisPeriod[dataSetId] = false;
 
-        // Update the payment rates based on current data set size
-        updatePaymentRates(dataSetId, leafCount);
+        // Additions update rate immediately in piecesAdded; only update here if pieces were removed
+        if (processScheduledPieceMetadataRemovals(dataSetId)) {
+            updatePaymentRates(dataSetId, leafCount);
+        }
     }
 
     /**
@@ -1181,7 +1211,12 @@ contract FilecoinWarmStorageService is
         internal
         view
     {
-        // Calculate required lockup for minimum pricing
+        // Calculate required lockup for minimum pricing.
+        // We use multiply-first here to preserve the exact monthly value for cleaner error messages
+        // (a round number like the configured floor price, rather than a value with many trailing digits
+        // from precision loss). This is slightly more conservative than the actual rail lockup (which
+        // uses the truncated per-epoch rate), but the difference is under 0.0001% and always in the
+        // user's favor - they are never required to have less than what the rail will actually lock.
         uint256 minimumLockupRequired = (minimumStorageRatePerMonth * DEFAULT_LOCKUP_PERIOD) / EPOCHS_PER_MONTH;
 
         // If CDN is enabled, include the fixed cache-miss and CDN lockup amounts
@@ -1249,6 +1284,31 @@ contract FilecoinWarmStorageService is
             0 // No one-time payment during rate update
         );
         emit RailRateUpdated(dataSetId, pdpRailId, newStorageRatePerEpoch);
+    }
+
+    function processScheduledPieceMetadataRemovals(uint256 dataSetId) internal returns (bool hadRemovals) {
+        uint256[] storage pieceIds = scheduledPieceMetadataRemovals[dataSetId];
+        uint256 len = pieceIds.length;
+        if (len == 0) {
+            return false;
+        }
+
+        mapping(uint256 => string[]) storage pieceMetadataKeys = dataSetPieceMetadataKeys[dataSetId];
+        mapping(uint256 => mapping(string => string)) storage pieceMetadata = dataSetPieceMetadata[dataSetId];
+
+        for (uint256 i = 0; i < len; i++) {
+            uint256 pieceId = pieceIds[i];
+            string[] storage metadataKeys = pieceMetadataKeys[pieceId];
+            mapping(string => string) storage metadata = pieceMetadata[pieceId];
+            uint256 keyLen = metadataKeys.length;
+            for (uint256 j = 0; j < keyLen; j++) {
+                delete metadata[metadataKeys[j]];
+            }
+            delete pieceMetadataKeys[pieceId];
+        }
+
+        delete scheduledPieceMetadataRemovals[dataSetId];
+        return true;
     }
 
     /**
@@ -1333,7 +1393,11 @@ contract FilecoinWarmStorageService is
         // Calculate natural size-based rate
         uint256 naturalRate = calculateStorageSizeBasedRatePerEpoch(totalBytes, storagePricePerTibPerMonth);
 
-        // Calculate minimum rate (floor price converted to per-epoch)
+        // Calculate minimum rate (floor price converted to per-epoch).
+        // Integer division truncates, so (minimumRate × EPOCHS_PER_MONTH) yields slightly less than
+        // minimumStorageRatePerMonth. For typical floor prices this precision loss is under 0.0001%.
+        // The pre-flight lockup check in validatePayerOperatorApprovalAndFunds uses a multiply-first
+        // formula that preserves the full monthly value, ensuring users always have sufficient funds.
         uint256 minimumRate = minimumStorageRatePerMonth / EPOCHS_PER_MONTH;
 
         // Return whichever is higher: natural rate or minimum rate
@@ -1570,7 +1634,7 @@ contract FilecoinWarmStorageService is
         (uint256 provenEpochCount, uint256 settleUpTo) =
             _findProvenEpochs(dataSetId, fromEpoch, toEpoch, activationEpoch);
 
-        // If no epochs are proven, we can't settle anything
+        // If no epochs are proven, no payment is due (but settlement may still advance)
         if (provenEpochCount == 0) {
             return ValidationResult({
                 modifiedAmount: 0,
@@ -1619,13 +1683,18 @@ contract FilecoinWarmStorageService is
                     provenEpochCount += maxProvingPeriod;
                 }
             }
-            settleUpTo = _calcPeriodDeadline(activationEpoch, endingPeriod - 1);
+            uint256 endingPeriodDeadline = _calcPeriodDeadline(activationEpoch, endingPeriod);
+            settleUpTo = endingPeriodDeadline - maxProvingPeriod;
 
             // handle the last period separately
             if (_isPeriodProven(dataSetId, endingPeriod)) {
                 provenEpochCount += (toEpoch - settleUpTo);
                 settleUpTo = toEpoch;
+            } else if (endingPeriodDeadline < block.number) {
+                // Period deadline passed but unproven - advance settlement with zero payment
+                settleUpTo = toEpoch;
             }
+            // else: period still open - settlement blocked at previous settleUpTo
         }
         return (provenEpochCount, settleUpTo);
     }
