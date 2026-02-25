@@ -47,7 +47,7 @@ contract ServiceProviderRegistryFullTest is MockFVMTest {
         vm.deal(user, 10 ether);
 
         // Deploy implementation
-        implementation = new ServiceProviderRegistry();
+        implementation = new ServiceProviderRegistry(2);
 
         // Deploy proxy
         bytes memory initData = abi.encodeWithSelector(ServiceProviderRegistry.initialize.selector);
@@ -85,7 +85,7 @@ contract ServiceProviderRegistryFullTest is MockFVMTest {
     // ========== Initial State Tests ==========
 
     function testInitialState() public view {
-        assertEq(registry.VERSION(), "1.0.0", "Version should be 1.0.0");
+        assertEq(registry.VERSION(), "1.1.0", "Version should be 1.1.0");
         assertEq(registry.owner(), owner, "Service provider should be deployer");
         assertEq(registry.getNextProviderId(), 1, "Next provider ID should start at 1");
         assertEq(registry.REGISTRATION_FEE(), 5 ether, "Registration fee should be 5 FIL");

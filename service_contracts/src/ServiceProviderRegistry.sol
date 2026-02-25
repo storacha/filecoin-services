@@ -43,7 +43,7 @@ contract ServiceProviderRegistry is
     }
 
     /// @notice Version of the contract implementation
-    string public constant VERSION = "1.0.0";
+    string public constant VERSION = "1.1.0";
 
     /// @notice Maximum length for service URL
     uint256 private constant MAX_SERVICE_URL_LENGTH = 256;
@@ -68,6 +68,9 @@ contract ServiceProviderRegistry is
 
     /// @notice Registration fee in attoFIL (5 FIL = 5 * 10^18 attoFIL)
     uint256 public constant REGISTRATION_FEE = 5e18;
+
+    // Upgrade sequence number, used by Initializable.reinitializer
+    uint64 private immutable REINITIALIZER_VERSION;
 
     /// @notice Emitted when a new provider registers
     event ProviderRegistered(uint256 indexed providerId, address indexed serviceProvider, address indexed payee);
@@ -102,6 +105,18 @@ contract ServiceProviderRegistry is
     /// @notice Emitted when the contract is upgraded
     event ContractUpgraded(string version, address implementation);
 
+    // Used for announcing upgrades, packed into one slot
+    struct PlannedUpgrade {
+        // Address of the new implementation contract
+        address nextImplementation;
+        // Upgrade will not occur until at least this epoch
+        uint96 afterEpoch;
+    }
+
+    PlannedUpgrade public nextUpgrade;
+
+    event UpgradeAnnounced(PlannedUpgrade plannedUpgrade);
+
     /// @notice Ensures the caller is the service provider
     modifier onlyServiceProvider(uint256 providerId) {
         require(providers[providerId].serviceProvider == msg.sender, "Only service provider can call this function");
@@ -124,7 +139,8 @@ contract ServiceProviderRegistry is
     /// @custom:oz-upgrades-unsafe-allow constructor
     /// @notice Constructor that disables initializers for the implementation contract
     /// @dev This ensures the implementation contract cannot be initialized directly
-    constructor() {
+    constructor(uint64 _reinitializer_version) {
+        REINITIALIZER_VERSION = _reinitializer_version;
         _disableInitializers();
     }
 
@@ -752,18 +768,32 @@ contract ServiceProviderRegistry is
         }
     }
 
+    /// @notice Announce a planned upgrade
+    /// @dev Can only be called by the contract owner
+    /// @param plannedUpgrade The planned upgrade details
+    function announcePlannedUpgrade(PlannedUpgrade calldata plannedUpgrade) external onlyOwner {
+        require(plannedUpgrade.nextImplementation.code.length > 3000);
+        require(plannedUpgrade.afterEpoch > block.number);
+        nextUpgrade = plannedUpgrade;
+        emit UpgradeAnnounced(plannedUpgrade);
+    }
+
     /// @notice Authorizes an upgrade to a new implementation
     /// @dev Can only be called by the contract owner
+    /// @dev Supports both one-step (legacy) and two-step (announcePlannedUpgrade) upgrade mechanisms
     /// @param newImplementation Address of the new implementation contract
     function _authorizeUpgrade(address newImplementation) internal override onlyOwner {
-        // Authorization logic is handled by the onlyOwner modifier
+        // zero address already checked by ERC1967Utils._setImplementation
+        require(newImplementation == nextUpgrade.nextImplementation);
+        require(block.number >= nextUpgrade.afterEpoch);
+        delete nextUpgrade;
     }
 
     /// @notice Migration function for contract upgrades
     /// @dev This function should be called during upgrades to emit version tracking events
+    /// Only callable during proxy upgrade process
     /// @param newVersion The version string for the new implementation
-    function migrate(string memory newVersion) public onlyProxy reinitializer(2) {
-        require(msg.sender == address(this), "Only self can call migrate");
+    function migrate(string memory newVersion) public onlyProxy onlyOwner reinitializer(REINITIALIZER_VERSION) {
         emit ContractUpgraded(newVersion, ERC1967Utils.getImplementation());
     }
 }
