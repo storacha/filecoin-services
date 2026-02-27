@@ -20,6 +20,10 @@ This repository contains smart contracts and services for the Filecoin ecosystem
 - **Payment Integration**: Built on top of the [Filecoin Services Payments](https://github.com/FilOzone/filecoin-services-payments) framework
 - **Data Verification**: Uses [PDP verifiers](https://github.com/FilOzone/pdp) for cryptographic proof of data possession
 
+## Pricing
+
+The service uses static global pricing set by the contract owner (default: 2.5 USDFC per TiB/month). Rail payment rates are calculated based on data size with a minimum floor. See [SPEC.md](SPEC.md) for details on rate calculation, pricing updates, and top-up/renewal behavior.
+
 ## 🚀 Quick Start
 
 ### Prerequisites
@@ -120,6 +124,10 @@ make help
 ## 🚀 Deployment
 
 For comprehensive deployment instructions, parameters, and scripts, see [service_contracts/tools/README.md](./service_contracts/tools/README.md).
+
+## 📊 Subgraph
+
+The subgraph for indexing Filecoin Warm Storage Service contracts is maintained in a separate repository: [FIL-Builders/fwss-subgraph](https://github.com/FIL-Builders/fwss-subgraph).
 
 ## 🔗 Dependencies
 

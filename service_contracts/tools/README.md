@@ -2,25 +2,57 @@
 
 This directory contains scripts for deploying and upgrading the FilecoinWarmStorageService contract on Calibration testnet and Mainnet.
 
+> **For detailed upgrade procedures**, see [UPGRADE-PROCESS.md](./UPGRADE-PROCESS.md).
+
 ## Scripts Overview
 
-### Available Scripts
+Scripts are organized with prefixes for better discoverability:
 
-- `deploy-warm-storage-calibnet.sh` - Deploy FilecoinWarmStorageService only (requires existing PDPVerifier and FilecoinPayV1 contracts)
-- `deploy-all-warm-storage.sh` - Deploy all contracts to either Calibnet or Mainnet
-- `upgrade-warm-storage-calibnet.sh` - Upgrade existing FilecoinWarmStorageService contract with new proving period parameters
+### Warm Storage Scripts
+
+| Script | Description |
+|--------|-------------|
+| `warm-storage-deploy-all.sh` | Deploy all contracts (PDPVerifier, FilecoinPayV1, FWSS, etc.) |
+| `warm-storage-deploy-implementation.sh` | Deploy FWSS implementation only (for upgrades) |
+| `warm-storage-deploy-view.sh` | Deploy FilecoinWarmStorageServiceStateView |
+| `warm-storage-deploy-calibnet.sh` | Deploy FWSS only (requires existing dependencies) |
+| `warm-storage-announce-upgrade.sh` | Announce a planned FWSS upgrade |
+| `warm-storage-execute-upgrade.sh` | Execute a previously announced FWSS upgrade |
+| `warm-storage-set-view.sh` | Set the StateView address on FWSS |
+
+### Service Provider Registry Scripts
+
+| Script | Description |
+|--------|-------------|
+| `service-provider-registry-deploy.sh` | Deploy ServiceProviderRegistry |
+| `service-provider-registry-announce-upgrade.sh` | Announce a planned registry upgrade |
+| `service-provider-registry-execute-upgrade.sh` | Execute a previously announced registry upgrade |
+
+### Ownership Management Scripts
+
+| Script | Description |
+|--------|-------------|
+| `transfer-ownership.sh` | Transfer ownership of FWSS and ServiceProviderRegistry proxies to a new owner |
+
+### Other Scripts
+
+| Script | Description |
+|--------|-------------|
+| `session-key-registry-deploy.sh` | Deploy SessionKeyRegistry |
+| `provider-id-set-deploy.sh` | Deploy ProviderIdSet |
 
 ### Usage
 
 ```bash
-# Deploy to Calibnet
-./tools/deploy-warm-storage-calibnet.sh
-
 # Deploy all contracts
-./tools/deploy-all-warm-storage.sh
+./tools/warm-storage-deploy-all.sh
 
-# Upgrade existing deployment
-./tools/upgrade-warm-storage-calibnet.sh
+# Deploy to Calibnet (FWSS only)
+./tools/warm-storage-deploy-calibnet.sh
+
+# Upgrade existing deployment (see UPGRADE-PROCESS.md for details)
+./tools/warm-storage-announce-upgrade.sh    # Step 1: Announce
+./tools/warm-storage-execute-upgrade.sh     # Step 2: Execute (after AFTER_EPOCH)
 ```
 
 ## Deployment Parameters
@@ -49,6 +81,62 @@ The following parameters are critical for proof generation and validation. They 
   DEFAULT_CHALLENGE_WINDOW_SIZE="20"     # 20 epochs
   ```
 
+## Deployment Address Management
+
+Deployment scripts automatically load and update contract addresses in `deployments.json`, keyed by chain ID. This makes deployments easier and reduces mistakes when updating addresses downstream.
+
+### deployments.json Structure
+
+The `deployments.json` file stores deployment addresses organized by chain ID:
+
+```json
+{
+  "314": {
+    "PDP_VERIFIER_PROXY_ADDRESS": "0x...",
+    "FILECOIN_PAY_ADDRESS": "0x...",
+    "FWSS_PROXY_ADDRESS": "0x...",
+    "metadata": {
+      "commit": "abc123...",
+      "deployed_at": "2024-01-01T00:00:00Z"
+    }
+  },
+  "314159": {
+    ...
+  }
+}
+```
+
+### How It Works
+
+1. **Loading addresses**: Scripts automatically load addresses from `deployments.json` for the detected chain ID. If an address doesn't exist in the JSON, the script will use environment variables or fail if required.
+
+2. **Updating addresses**: When a script deploys a new contract, it automatically updates `deployments.json` with the new address.
+
+3. **Environment variable override**: Environment variables take precedence over values loaded from JSON, allowing you to override specific addresses when needed.
+
+4. **Metadata tracking**: The system automatically tracks the git commit hash and deployment timestamp for each chain.
+
+### Control Flags
+
+- `SKIP_LOAD_DEPLOYMENTS=true` - Skip loading addresses from JSON (use only environment variables)
+- `SKIP_UPDATE_DEPLOYMENTS=true` - Skip updating JSON after deployment
+
+### Querying Addresses
+
+You can query addresses using `jq`:
+
+```bash
+# Get all addresses for a chain
+jq '.["314"]' deployments.json
+
+# Get a specific address
+jq -r '.["314"].FWSS_PROXY_ADDRESS' deployments.json
+```
+
+### Version Control
+
+The `deployments.json` file should be committed to version control. Updates to it should be tagged as version releases.
+
 ## Environment Variables
 
 ### Required for all scripts:
@@ -59,17 +147,14 @@ These scripts now follow forge/cast's environment variable conventions. Set the 
 - `ETH_FROM` - Optional: address to use as deployer (forge/cast default is taken from the keystore)
 
 ### Required for specific scripts:
-- `deploy-warm-storage-calibnet.sh` requires:
-
+- `warm-storage-deploy-calibnet.sh` requires:
   - `PDP_VERIFIER_PROXY_ADDRESS` - Address of deployed PDPVerifier contract
-  - `PAYMENTS_CONTRACT_ADDRESS` - Address of deployed FilecoinPayV1 contract
+  - `FILECOIN_PAY_ADDRESS` - Address of deployed FilecoinPayV1 contract
 
-
-- `deploy-all-warm-storage.sh` requires:
+- `warm-storage-deploy-all.sh` requires:
   - `CHALLENGE_FINALITY` - Challenge finality parameter for PDPVerifier
 
-- `upgrade-warm-storage-calibnet.sh` requires:
-  - `WARM_STORAGE_SERVICE_PROXY_ADDRESS` - Address of existing FilecoinWarmStorageService proxy to upgrade
+- Upgrade scripts - see [UPGRADE-PROCESS.md](./UPGRADE-PROCESS.md) for complete environment variable reference
 
 ## Usage Examples
 
@@ -87,7 +172,7 @@ export CHALLENGE_FINALITY="10"  # Use "150" for mainnet
 export MAX_PROVING_PERIOD="240"        # 240 epochs for calibnet, 2880 for mainnet
 export CHALLENGE_WINDOW_SIZE="20"      # 20 epochs for calibnet, 60 for mainnet
 
-./deploy-all-warm-storage.sh
+./warm-storage-deploy-all.sh
 ```
 
 ### Deploy FilecoinWarmStorageService Only
@@ -96,33 +181,79 @@ export CHALLENGE_WINDOW_SIZE="20"      # 20 epochs for calibnet, 60 for mainnet
 export ETH_KEYSTORE="/path/to/keystore.json"
 export PASSWORD="your-password"
 export ETH_RPC_URL="https://api.calibration.node.glif.io/rpc/v1"
-export PDP_VERIFIER_ADDRESS="0x123..."
-export PAYMENTS_CONTRACT_ADDRESS="0x456..."
+export PDP_VERIFIER_PROXY_ADDRESS="0x123..."
+export FILECOIN_PAY_ADDRESS="0x456..."
 
-./deploy-warm-storage-calibnet.sh
+./warm-storage-deploy-calibnet.sh
 ```
 
 ### Upgrade Existing Contract
 
-```bash
-export ETH_KEYSTORE="/path/to/keystore.json"
-export PASSWORD="your-password"
-export ETH_RPC_URL="https://api.calibration.node.glif.io/rpc/v1"
-export WARM_STORAGE_SERVICE_PROXY_ADDRESS="0x789..."
-
-# Optional: Custom proving periods
-export MAX_PROVING_PERIOD="240"        # 240 epochs for calibnet, 2880 for mainnet
-export CHALLENGE_WINDOW_SIZE="20"      # 20 epochs for calibnet, 60 for mainnet
-
-./upgrade-warm-storage-calibnet.sh
-```
+See [UPGRADE-PROCESS.md](./UPGRADE-PROCESS.md) for the complete two-step upgrade workflow.
 
 ## Contract Upgrade Process
 
-The FilecoinWarmStorageService contract uses OpenZeppelin's upgradeable pattern. When upgrading:
+The FilecoinWarmStorageService and ServiceProviderRegistry contracts use a **two-step upgrade process** for security:
 
-1. **Deploy new implementation**: The script deploys a new implementation contract
-2. **Upgrade proxy**: Uses `upgradeToAndCall` to point the proxy to the new implementation
+1. **Announce**: Call `announcePlannedUpgrade()` with the new implementation address and a future epoch
+2. **Execute**: After the announced epoch, call `upgradeToAndCall()` to complete the upgrade
+
+This gives stakeholders time to review changes before execution.
+
+**For complete upgrade documentation**, including:
+- Step-by-step upgrade workflows
+- Environment variable reference
+- Immutable dependency handling
+- Verification procedures
+
+See [UPGRADE-PROCESS.md](./UPGRADE-PROCESS.md).
+
+## Ownership Transfer
+
+The `transfer-ownership.sh` script transfers ownership of the FWSS proxy and ServiceProviderRegistry proxy to a new owner (e.g., a Safe multisig). The transfer uses OpenZeppelin's `transferOwnership(address)` — immediate, one-step, irreversible.
+
+### Dry Run (read-only)
+
+```bash
+export ETH_RPC_URL="https://api.calibration.node.glif.io/rpc/v1"
+export NEW_OWNER="0x6386622B4915B027900d65560b0ab84F8a1ff2AA"
+DRY_RUN=true ./transfer-ownership.sh
+```
+
+### Execute Transfer
+
+```bash
+export ETH_RPC_URL="https://api.calibration.node.glif.io/rpc/v1"
+export ETH_KEYSTORE="/path/to/keystore.json"
+export PASSWORD="your-password"
+export NEW_OWNER="0x6386622B4915B027900d65560b0ab84F8a1ff2AA"
+./transfer-ownership.sh
+```
+
+The script verifies `NEW_OWNER` is a contract (not an EOA), checks the sender is the current owner of both contracts, and verifies ownership after each transfer.
+
+## Post-Transfer: Multisig Operations
+
+After ownership is transferred to a multisig, the upgrade and management scripts can no longer send transactions directly. Instead, use `CALLDATA_ONLY=true` to generate calldata for the Safe transaction builder.
+
+The following scripts support `CALLDATA_ONLY=true`:
+- `warm-storage-announce-upgrade.sh`
+- `warm-storage-execute-upgrade.sh`
+- `service-provider-registry-announce-upgrade.sh`
+- `service-provider-registry-execute-upgrade.sh`
+- `warm-storage-set-view.sh`
+
+### Example: Announce an upgrade via multisig
+
+```bash
+export ETH_RPC_URL="https://api.node.glif.io/rpc/v1"
+export FWSS_PROXY_ADDRESS="0x8408502033C418E1bbC97cE9ac48E5528F371A9f"
+export NEW_FWSS_IMPLEMENTATION_ADDRESS="0x..."
+export AFTER_EPOCH="123456"
+CALLDATA_ONLY=true ./warm-storage-announce-upgrade.sh
+```
+
+This prints a formatted transaction block with the target address, function signature, and calldata to paste into the Safe UI transaction builder.
 
 ## Testing
 
