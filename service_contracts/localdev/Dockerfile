@@ -20,7 +20,7 @@ RUN CGO_ENABLED=0 go build -o mockrpc .
 # ============================================
 # Stage 2: Runtime - Deploy contracts on startup
 # ============================================
-FROM ghcr.io/foundry-rs/foundry:latest
+FROM ghcr.io/foundry-rs/foundry:stable
 
 USER root
 
