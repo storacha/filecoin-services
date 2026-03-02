@@ -236,7 +236,7 @@ echo
 echo "=========================================="
 echo "Step 3: Deploy PDPVerifier"
 echo "=========================================="
-VERIFIER_IMPL=$(deploy "PDPVerifier Implementation" "lib/pdp/src/PDPVerifier.sol:PDPVerifier")
+VERIFIER_IMPL=$(deploy "PDPVerifier Implementation" "lib/pdp/src/PDPVerifier.sol:PDPVerifier" 1)
 INIT_DATA=$(cast calldata "initialize(uint256)" "$CHALLENGE_FINALITY")
 PDP_VERIFIER_ADDRESS=$(deploy_proxy "PDPVerifier" "$VERIFIER_IMPL" "$INIT_DATA")
 
@@ -250,7 +250,7 @@ echo
 echo "=========================================="
 echo "Step 5: Deploy ServiceProviderRegistry"
 echo "=========================================="
-REGISTRY_IMPL=$(deploy "ServiceProviderRegistry Implementation" "src/ServiceProviderRegistry.sol:ServiceProviderRegistry")
+REGISTRY_IMPL=$(deploy "ServiceProviderRegistry Implementation" "src/ServiceProviderRegistry.sol:ServiceProviderRegistry" 1)
 REGISTRY_INIT_DATA=$(cast calldata "initialize()")
 SERVICE_PROVIDER_REGISTRY_PROXY_ADDRESS=$(deploy_proxy "ServiceProviderRegistry" "$REGISTRY_IMPL" "$REGISTRY_INIT_DATA")
 
@@ -272,7 +272,8 @@ FWS_IMPL=$(deploy "FilecoinWarmStorageService Implementation" \
     "$USDFC_TOKEN_ADDRESS" \
     "$FILBEAM_BENEFICIARY_ADDRESS" \
     "$SERVICE_PROVIDER_REGISTRY_PROXY_ADDRESS" \
-    "$SESSION_KEY_REGISTRY_ADDRESS")
+    "$SESSION_KEY_REGISTRY_ADDRESS" \
+    1)
 unset LIBRARIES
 
 FWS_INIT_DATA=$(cast calldata "initialize(uint64,uint256,address,string,string)" \
