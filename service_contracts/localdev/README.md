@@ -54,12 +54,6 @@ The container operates in one of two modes, selected by the `MODE` env var.
 If `MODE` is unset, the entrypoint autodetects: load mode if
 `/app/anvil-state.json` is present, otherwise init mode.
 
-> **Breaking change**: the previous `DUMP_STATE=true` env var has been removed.
-> Use `MODE=init` instead. The critical behavioral difference is that init mode
-> now stays alive after deploying contracts (so external services can register
-> against the chain) and dumps state on graceful shutdown (SIGTERM), rather than
-> dumping immediately after deploy.
-
 ### Init Mode
 
 Deploys all contracts, starts the mock RPC server, then stays alive. On SIGTERM
