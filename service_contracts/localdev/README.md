@@ -21,13 +21,25 @@ docker run -p 8545:8545 -e ANVIL_BLOCK_TIME=3 filecoin-localdev:local
 Uses pre-dumped state files to skip contract deployment:
 
 ```bash
-# First, generate state files (one-time)
-docker run --rm -v $(pwd):/output -e DUMP_STATE=true filecoin-localdev:local
+# Generate state files (one-time). The container stays alive after deploying
+# contracts; external services may register against the chain before you stop it.
+docker run -d --name localdev-init \
+  -p 8545:8545 \
+  -v $(pwd):/output \
+  -e MODE=init \
+  filecoin-localdev:local
 
-# Then run with state files
+# ... optionally run external services that register against the chain here ...
+
+# Graceful shutdown triggers the state dump:
+docker stop localdev-init
+docker rm localdev-init
+
+# Then run with the produced state files:
 docker run -p 8545:8545 \
   -v $(pwd)/anvil-state.json:/app/anvil-state.json \
   -v $(pwd)/deployed-addresses.json:/deployed-addresses.json \
+  -e MODE=load \
   -e ANVIL_BLOCK_TIME=3 \
   filecoin-localdev:local
 ```
@@ -38,30 +50,44 @@ docker run -p 8545:8545 \
 
 ## State Management
 
-The container supports three modes for flexible testing workflows.
+The container operates in one of two modes, selected by the `MODE` env var.
+If `MODE` is unset, the entrypoint autodetects: load mode if
+`/app/anvil-state.json` is present, otherwise init mode.
 
-### Mode 1: Normal Mode (Default)
+> **Breaking change**: the previous `DUMP_STATE=true` env var has been removed.
+> Use `MODE=init` instead. The critical behavioral difference is that init mode
+> now stays alive after deploying contracts (so external services can register
+> against the chain) and dumps state on graceful shutdown (SIGTERM), rather than
+> dumping immediately after deploy.
 
-Starts Anvil and deploys all contracts from scratch. Takes ~30 seconds but guarantees fresh state.
+### Init Mode
+
+Deploys all contracts, starts the mock RPC server, then stays alive. On SIGTERM
+(e.g. `docker stop`), state is dumped to `$OUTPUT_DIR` (default `/output`).
 
 ```bash
-docker run -p 8545:8545 filecoin-localdev:local
+docker run -d --name localdev \
+  -p 8545:8545 \
+  -v $(pwd):/output \
+  -e MODE=init \
+  filecoin-localdev:local
+
+# Optionally: run external services that call contract methods against
+# http://localhost:8545 — their state changes will be captured in the dump.
+
+docker stop localdev   # SIGTERM → dump
 ```
 
-### Mode 2: Dump Mode
+**Output files** (written to `$OUTPUT_DIR` on graceful shutdown):
+- `anvil-state.json` — Complete Anvil blockchain state (~2-10 MB)
+- `deployed-addresses.json` — Contract addresses for this deployment
 
-Deploys contracts, exports the complete chain state, then exits. Use this to generate state files for fast startup.
+**Safety**: if SIGTERM arrives while contract deployment is still in progress,
+the container exits non-zero and does NOT write state files. This prevents
+snapshotting a half-deployed chain. Only stop the container after your external
+registration flow has completed.
 
-```bash
-# Mount /output to receive the state files
-docker run --rm -v $(pwd):/output -e DUMP_STATE=true filecoin-localdev:local
-```
-
-**Output files:**
-- `anvil-state.json` - Complete Anvil blockchain state (~2-10 MB)
-- `deployed-addresses.json` - Contract addresses for this deployment
-
-### Mode 3: Load Mode
+### Load Mode
 
 Loads pre-existing state instead of deploying contracts. Starts in ~3 seconds.
 
@@ -69,13 +95,34 @@ Loads pre-existing state instead of deploying contracts. Starts in ~3 seconds.
 docker run -p 8545:8545 \
   -v /path/to/anvil-state.json:/app/anvil-state.json \
   -v /path/to/deployed-addresses.json:/deployed-addresses.json \
+  -e MODE=load \
   filecoin-localdev:local
 ```
 
 **Requirements:**
-- Both files must be mounted
+- Both files must be mounted (state file at `/app/anvil-state.json`, addresses
+  at `/deployed-addresses.json`)
 - Files must be from the same dump (matching state)
 - State format must be from `--dump-state` CLI (NOT `anvil_dumpState` RPC)
+
+**Opt-in state capture on shutdown**: if you bind-mount a writable directory at
+`/output`, the container writes the current in-memory anvil state (including
+any transactions applied since startup) to `$OUTPUT_DIR/anvil-state.json` on
+graceful shutdown (SIGTERM). This lets orchestrators capture a post-activity
+snapshot without re-deploying contracts. No mount → no write.
+
+```bash
+docker run -d --name localdev -p 8545:8545 \
+  -v $(pwd)/state/anvil-state.json:/app/anvil-state.json \
+  -v $(pwd)/state/deployed-addresses.json:/deployed-addresses.json \
+  -v $(pwd)/output:/output \
+  -e MODE=load \
+  filecoin-localdev:local
+
+# ... apply transactions via RPC ...
+
+docker stop localdev    # SIGTERM → anvil dumps current state to $(pwd)/output/
+```
 
 ### When to Regenerate State Files
 
@@ -148,10 +195,11 @@ cat deployed-addresses.json
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `ANVIL_BLOCK_TIME` | `1` | Block mining interval in seconds |
+| `MODE` | autodetect | `init` (deploy + stay alive, dump on SIGTERM) or `load` (restore from state file). Autodetected from presence of `/app/anvil-state.json` when unset. |
+| `OUTPUT_DIR` | `/output` | Directory state files are written to on graceful shutdown in init mode. |
+| `ANVIL_BLOCK_TIME` | `3` | Block mining interval in seconds |
 | `ANVIL_PORT` | `8546` | Internal Anvil port |
 | `RPC_PORT` | `8545` | External RPC port |
-| `DUMP_STATE` | `false` | Set to `true` to run in dump mode |
 
 ### Contract Configuration
 
@@ -291,8 +339,21 @@ docker build -t filecoin-localdev:local -f Dockerfile ..
 # Build container
 docker build -t filecoin-localdev:local -f Dockerfile ..
 
-# Generate state files
-docker run --rm -v $(pwd):/output -e DUMP_STATE=true filecoin-localdev:local
+# Start in init mode (deploys contracts, stays alive)
+docker run -d --name localdev-gen \
+  -v $(pwd):/output \
+  -e MODE=init \
+  filecoin-localdev:local
+
+# Wait for healthy (contracts deployed, mockrpc ready)
+until [ "$(docker inspect -f '{{.State.Health.Status}}' localdev-gen)" = "healthy" ]; do sleep 1; done
+
+# Optionally: run any additional setup transactions against the chain here
+# so their state is captured in the snapshot.
+
+# Graceful stop triggers the state dump
+docker stop localdev-gen
+docker rm localdev-gen
 
 # Copy to your test directory
 cp anvil-state.json deployed-addresses.json /path/to/testdata/

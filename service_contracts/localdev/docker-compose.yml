@@ -16,9 +16,13 @@ services:
       # Override with: ANVIL_BLOCK_TIME=30 docker-compose up -d
       - ANVIL_BLOCK_TIME=${ANVIL_BLOCK_TIME:-3}
     healthcheck:
-      test: ["CMD", "curl", "-sf", "http://localhost:8545", "-X", "POST", "-H", "Content-Type: application/json", "-d", '{"jsonrpc":"2.0","method":"eth_blockNumber","params":[],"id":1}']
+      # Sentinel file is touched by the entrypoint after contracts are deployed
+      # (init mode) or state is loaded (load mode) AND mockrpc is accepting
+      # requests. A port-probe healthcheck would flip healthy before contracts
+      # are deployed.
+      test: ["CMD", "test", "-f", "/tmp/ready"]
       interval: 5s
       timeout: 5s
       retries: 10
-      start_period: 30s
+      start_period: 60s
     restart: unless-stopped
